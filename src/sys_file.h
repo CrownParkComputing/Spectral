@@ -17,8 +17,8 @@
 #define basename basename__linux__
 #endif
 
-#define DIR_SEP '/'
 #define DIR_MAX MAX_PATH
+#define DIR_SEP_ "/"
 
 #ifdef _WIN32
 #define open8(path,mode)  _wopen(widen(path))
@@ -123,7 +123,7 @@ const char* app_loadfile() {
     const char *filters[] = { "*.*" };
     int allowMultipleSelections = 0;
 
-    tinyfd_assumeGraphicDisplay = 1;
+    //tinyfd_assumeGraphicDisplay = 1;
     return tinyfd_openFileDialog( windowTitle, cwd, countof(filters), filters, filterHints, allowMultipleSelections );
 #else
     return osdialog_file(OSDIALOG_OPEN, cwd, NULL, NULL);
@@ -136,7 +136,7 @@ const char* app_savefile() {
     const char *filterHints = NULL; // "image files"
     const char *filters[] = { "*.*" };
 
-    tinyfd_assumeGraphicDisplay = 1;
+    //tinyfd_assumeGraphicDisplay = 1;
     return tinyfd_saveFileDialog( windowTitle, cwd, countof(filters), filters, filterHints );
 #else
     return osdialog_file(OSDIALOG_SAVE, cwd, NULL, NULL);

@@ -101,11 +101,11 @@ bool RZX_load(const void *ptr, int len) {
     if( memcmp(ptr, "RZX!", 4) ) return 0;
 
     bool ok = 0;
-    for( FILE *fp = fopen(".Spectral.rzx", "wb"); fp; fclose(fp), fp = 0) {
+    for( FILE *fp = fopen(".Spectral/Spectral.rzx", "wb"); fp; fclose(fp), fp = 0) {
         ok = fwrite(ptr, len, 1, fp);
     }
-    ok = ok && RZX_play(".Spectral.rzx", 0);
-    return unlink(".Spectral.rzx"), ok;
+    ok = ok && RZX_play(".Spectral/Spectral.rzx", 0);
+    return unlink(".Spectral/Spectral.rzx"), ok;
 }
 
 void RZX_tick() {

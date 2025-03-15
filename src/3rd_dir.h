@@ -117,7 +117,7 @@ int dir_yield(dir *d, const char *pathfile, char *name, int namelen) {
 
 dir *dir_open(const char *pathfile, const char *mode) {
     dir *d = (dir*)REALLOC(0, sizeof(dir)), zero = {0}; *d = zero;
-    d->recursive = (mode[0] == 'R' || mode[0] == 'r');
+    d->recursive = mode && (mode[0] == 'R' || mode[0] == 'r');
 
     char *clean = STRDUP( pathfile );
     for( int i = 0; clean[i]; ++i ) if(clean[i] == '\\') clean[i] = '/';

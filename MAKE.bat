@@ -20,9 +20,10 @@ if [ "$(uname)" != "Darwin" ]; then
 # compile -------------------------------------------------------------------- do not use -O3 below. zxdb cache will contain 0-byte files otherwise.
 gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
 upx -9 Spectral.linux
-src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
-src/res/embed.linux Spectral.linux src/res/zxdb/Spectral.db.gz
-src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
+#src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
+#src/res/embed.linux Spectral.linux src/res/zxdb/Spectral.db.gz
+#src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
+cat Spectral.linux src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.linux
 
 fi
 
@@ -31,9 +32,10 @@ if [ "$(uname)" = "Darwin" ]; then
 # compile --------------------------------------------------------------------
 export SDKROOT=$(xcrun --show-sdk-path)
 gcc -ObjC src/app.c -I src -o ./Spectral.osx -O3 -DNDEBUG=3 -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -Wno-dangling-else -framework cocoa -framework iokit -framework CoreFoundation -framework CoreAudio -framework AudioToolbox -framework OpenGL -lm $* || exit
-src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
-src/res/embed.osx Spectral.osx src/res/zxdb/Spectral.db.gz
-src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
+#src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
+#src/res/embed.osx Spectral.osx src/res/zxdb/Spectral.db.gz
+#src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
+cat Spectral.osx src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.osx
 
 # embed icon and make .app
 test -d Spectral.app && rm -rf Spectral.app
@@ -65,7 +67,7 @@ if "%1"=="" (
 )
 
 if "%1"=="-h" (
-    echo make [deb^|dev^|opt^|rel] [compiler-flags]
+    echo make [bug^|dev^|opt^|rel] [compiler-flags]
     exit /b
 )
 
@@ -120,14 +122,12 @@ if "%1"=="tidy" (
 
 if "%1"=="dev" (
     call make nil /Zi %ALL_FROM_2ND% || goto error
-    src\res\embed Spectral.exe @SpectralEmBeDdEd
-    src\res\embed Spectral.exe src\res\zxdb\Spectral.db.gz
-    src\res\embed Spectral.exe @SpectralEmBeDdEd
+    copy /b/y Spectral.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
 
     exit /b
 )
 
-if "%1"=="deb" (
+if "%1"=="bug" (
     call make dev /fsanitize=address %ALL_FROM_2ND% || goto error
 
     tasklist /fi "ImageName eq remedybg.exe" 2>NUL | find /I "exe">NUL || (where /q remedybg.exe && start remedybg -q -g Spectral.exe)
@@ -136,19 +136,19 @@ if "%1"=="deb" (
 )
 
 if "%1"=="opt" (
+    rem /dynamicdeopt 
     rem do not use /O1 or /O2 below. ayumi drums will be broken in AfterBurner.dsk otherwise (not anymore?)
     rem do not use /O2 below. +3 FDC may behave weirdly otherwise (AfterBurner.dsk/GNG.dsk)
-    rem do not use /arch:AVX2 to maximize compatibility. see issue #4
     rem false positives: +1 (vs19) .. +4 (vs22) - secureage (bc of DNDEBUG and optimization flags lol)
-    call make nil /Ox /MT /DNDEBUG /GL /GF /arch:AVX %ALL_FROM_2ND% || goto error
+    call make nil /Ox /MT /DNDEBUG /GL /GF %ALL_FROM_2ND% || goto error
     rem false positives: +12
     rem where /q upx.exe && upx Spectral.exe
+
     rem false positives: +2 - crowdstrike falcon, cylance
-    src\res\embed Spectral.exe @SpectralEmBeDdEd
-    copy /y Spectral.exe SpectralNoZXDB.exe
+    copy /b/y Spectral.exe+src\res\embed SpectralNoZXDB.exe > nul
     rem false positives: +1 - microsoft (defender)
-    src\res\embed Spectral.exe src\res\zxdb\Spectral.db.gz
-    src\res\embed Spectral.exe @SpectralEmBeDdEd
+    copy /b/y SpectralNoZXDB.exe+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
+
     exit /b
 )
 
@@ -162,7 +162,7 @@ if "%1"=="rel" (
     del *.ilk 1>nul 2>nul
     del *.pdb 1>nul 2>nul
 
-    exit /b 1
+    exit /b
 )
 
 where /q cl.exe || call "%VS170COMNTOOLS%/../../VC/Auxiliary/Build/vcvarsx86_amd64.bat" >nul 2>nul
@@ -180,8 +180,12 @@ set "cc=clang-cl -Wno-multichar -Wno-unused-value -Wno-macro-redefined -Wno-impl
 (where /q clang-cl || set "cc=cl" >nul 2>nul)
 )
 
-echo !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe %ALL_FROM_2ND%
-     !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe %ALL_FROM_2ND% || goto error
+rem X86 use /arch:SSE2 to maximize performance
+rem X64 do not use /arch:AVX2 to maximize compatibility. see issue #4
+if "%__DOTNET_PREFERRED_BITNESS%"=="32" (set ARCH=/arch:SSE2) else (set ARCH=/arch:AVX)
+
+echo !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND%
+     !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND% || goto error
 
 
 for /F "skip=1 delims=" %%F in ('
@@ -193,14 +197,31 @@ for /F "skip=1 delims=" %%F in ('
         set year=%%N
     )
 )
-where /q rcedit-x64.exe && rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!"
-where /q rcedit-x64.exe && rcedit-x64 "Spectral.exe" --set-product-version "1.03 Spectral"
-where /q rcedit-x64.exe && rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico
-rem where /q rcedit-x64.exe && rcedit-x64 "Spectral.exe" --set-version-string "version" "value"
-rem where /q rcedit-x64.exe && rcedit-x64 "Spectral.exe" --set-resource-string "version" "value"
+
+rem where /q rcedit-x64 || (git clone https://github.com/electron/rcedit && pushd rcedit && git checkout 28a1319 && rc src\rcedit.rc && cl /Fercedit-x64 src\*.res src\*.c* /EHsc version.lib && copy *.exe /y .. && popd)
+rem where /q rcedit-x64 || (git clone https://github.com/electron/rcedit/ && pushd rcedit && cmake . && msbuid rcedit.sln && popd)
+rem where /q rcedit-x64 || (
+rem git clone https://github.com/electron/rcedit && pushd rcedit && git checkout 28a1319
+rem echo cmake_minimum_required^(VERSION 3.15^) > CMakeLists.txt
+rem echo set^(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded"^) >> CMakeLists.txt
+rem echo project^(rcedit^) >> CMakeLists.txt
+rem echo add_executable^(rcedit src/main.cc src/rescle.cc src/rcedit.rc^) >> CMakeLists.txt
+rem echo target_link_libraries^(rcedit version.lib^) >> CMakeLists.txt
+rem cmake . && msbuild rcedit.sln
+rem copy /y Debug\rcedit.exe ..\rcedit-x64.exe
+rem popd
+rem )
+
+where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
+where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!"
+where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-product-version "1.04 Spectral"
+where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico
+rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-version-string "version" "value"
+rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-resource-string "version" "value"
+
 rem where /Q ResourceHacker.exe && ResourceHacker.exe -open Spectral.exe -save Spectral.exe -action addskip -res src\res\img\noto_1f47b.ico -mask ICONGROUP,MAINICON,0
 
-if "%__DOTNET_PREFERRED_BITNESS%"=="1" (
+if "%__DOTNET_PREFERRED_BITNESS%"=="32" (
     move /y Spectral.exe SpectralX86.exe
 )
 

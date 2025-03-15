@@ -21,18 +21,24 @@
 #include <io.h>
 #endif
 
+void enable_ansi() {
+#ifdef _WIN32
+    void *handle;
+    DWORD mode;
+    if (GetConsoleMode(handle = GetStdHandle(STD_OUTPUT_HANDLE), &mode)) {
+        SetConsoleMode(handle, mode | 4); /* ENABLE_VIRTUAL_TERMINAL_PROCESSING. ignore errors */
+    }
+    _pclose(_popen("chcp 65001 >nul", "r")); // enable unicode
+#endif
+}
+
 void ansi(void) {
 #ifdef _WIN32
     static int counter = 0;
     if( counter++ ) {
         (printf)(ANSI_RESET);
     } else {
-        void *handle;
-        DWORD mode;
-        if (GetConsoleMode(handle = GetStdHandle(STD_OUTPUT_HANDLE), &mode)) {
-            SetConsoleMode(handle, mode | 4); /* ENABLE_VIRTUAL_TERMINAL_PROCESSING. ignore errors */
-        }
-        _pclose(_popen("chcp 65001 >nul", "r")); // enable unicode
+        enable_ansi();
         atexit(ansi);
     }
 #endif

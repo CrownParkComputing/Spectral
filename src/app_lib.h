@@ -381,6 +381,16 @@ void rescan(const char *folder) {
     if(!folder) return;
     if(ZX_PLAYER) return; // zxplayer has no library
 
+    printf("scanning `%s` folder...\n", folder);
+
+    // convert to absolute
+    char buffer[MAX_PATH]={0};
+    realpath(folder, buffer);
+    folder = buffer;
+
+    char parent[MAX_PATH]={0};
+    snprintf(parent, MAX_PATH, "%s/../", folder);
+
     // clean up
     while( numgames ) free(games[--numgames]);
     games = realloc(games, 0);
@@ -389,12 +399,29 @@ void rescan(const char *folder) {
     {
         numok=0,numwarn=0,numerr=0;
 
-        for( dir *d = dir_open(folder, "r"); d; dir_close(d), d = NULL ) {
+        // add parent folder `..`
+        ++numgames;
+        games = realloc(games, numgames * sizeof(char*) );
+        games[numgames-1] = strdup(parent);
+        dbgames = realloc(dbgames, numgames * sizeof(char*) );
+        dbgames[numgames-1] = 0;
+
+        for( dir *d = dir_open(folder, NULL); d; dir_close(d), d = NULL ) {
+            for( unsigned is_file = 0; is_file < 2; ++is_file )
             for( unsigned count = 0, end = dir_count(d); count < end; ++count ) {
-                if( !dir_file(d, count) ) continue;
+                if( is_file ^ dir_file(d,count) ) continue;
 
                 const char *fname = dir_name(d, count);
-                if( strendi(fname, ".db") ) {
+                if( is_file ? file_is_supported(fname,ALL_FILES) : 1 ) {
+                    // append
+                    ++numgames;
+                    games = realloc(games, numgames * sizeof(char*) );
+                    games[numgames-1] = strdup(fname);
+                    //
+                    dbgames = realloc(dbgames, numgames * sizeof(char*) );
+                    dbgames[numgames-1] = is_file ? db_get(fname) : 0;
+                }
+                if( is_file && strendi(fname, ".db") ) {
                     for(FILE *fp2 = fopen(fname, "rb"); fp2; fclose(fp2), fp2=0) {
                         int ch;
                         fscanf(fp2, "%d", &ch); ch &= 0xFF;
@@ -402,20 +429,6 @@ void rescan(const char *folder) {
                         numerr += ch == 2;
                         numwarn += ch == 3;
                     }
-                }
-            }
-            for( unsigned count = 0, end = dir_count(d); count < end; ++count ) {
-                if( !dir_file(d, count) ) continue;
-
-                const char *fname = dir_name(d, count);
-                if( file_is_supported(fname,ALL_FILES) ) {
-                    // append
-                    ++numgames;
-                    games = realloc(games, numgames * sizeof(char*) );
-                    games[numgames-1] = strdup(fname);
-                    //
-                    dbgames = realloc(dbgames, numgames * sizeof(char*) );
-                    dbgames[numgames-1] = db_get(fname);
                 }
             }
         }
@@ -440,119 +453,168 @@ void draw_compatibility_stats(window *layer) {
     }
 }
 
+char *filter; // current text filter in use. can be NULL
+int game_filter() { // returns true if any key was pressed
+    enum { _16 = 32, _15 = _16 - 1 };
+    static int chars[_16] = {0}, chars_count = -1;
+    static char utf8[5+_16*6+1] = "Find:";
+    filter = utf8 + 5;
+
+    int anykey = 0, done = 0, clear = 0;
+    // Grab any chars and add them to our buffer.
+    for(;;) {
+        int c = tigrReadChar(app);
+        if (c == 0) break;
+        if( window_pressed(app,TK_CONTROL)) break;
+        if( c == '\n' || c == '\r' ) { done = 1; break; }
+        if( c == '\b' || window_pressed(app, TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
+        if( c == '\t' && chars_count > 0 ) { anykey = 1; break; }
+        if( c < 32 ) continue;
+        if( c == 32 && chars_count < 0 ) continue;
+        if( c == 32 && chars_count > 0 && chars[chars_count] == 32 ) continue;
+        else anykey = 1;
+        chars[ chars_count = min(chars_count+1, _15) ] = c;
+
+        char *p = filter;
+        for (int n=0;n<_16;n++)
+            p = tigrEncodeUTF8(p, chars[n]);
+        *p = 0;
+    }
+
+    // display
+
+    if( done ) {
+        memset(chars, 0, sizeof(int)*_16);
+        chars_count = -1;
+
+        if( clear ) *filter = '\0';
+
+        ui_dialog_new(NULL);
+    }
+    else if( anykey && *filter ) {
+        if( num_options == 1 && (options[0].flags & 2) && options[0].text[0] == 'F' ) {
+            (void)REALLOC((void*)options[0].text, 0);
+            options[0].text = STRDUP(va("%s▁\n",utf8));
+        }
+        else {
+            ui_dialog_new(NULL);
+            ui_dialog_option(2, va("<%s▁                             \n",utf8),NULL, 0,NULL);
+        }
+    }
+
+    return anykey;
+}
+
+
+
 int selected, scroll;
+
+int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns clicked entry, or <0 if none
+    if( scroll < 0 ) scroll = 0;
+    if (!numgames) return -1;
+
+#if 0
+    if( window_pressed(app, TK_CONTROL) && window_trigger(app, TK_HOME) )
+        return selected = 0, scroll = 0, -1;
+    if( window_pressed(app, TK_CONTROL) && window_trigger(app, TK_END) )
+        return selected = numgames % ENTRIES, scroll = numgames / ENTRIES, -1; //fixme
+#endif
+
+    static int tbl[256] = {0};
+    int up = window_keyrepeat_(app, TK_DOWN, tbl) - window_keyrepeat_(app, TK_UP, tbl);
+    int pg = window_keyrepeat_(app, TK_PAGEDN, tbl) - window_keyrepeat_(app, TK_PAGEUP, tbl);
+    int home = window_pressed(app, TK_HOME) || (window_pressed(app, TK_UP) && tigrKeyHeld(app, TK_CONTROL));
+    int end  = window_pressed(app, TK_END) || (window_pressed(app, TK_DOWN) && tigrKeyHeld(app, TK_CONTROL));
+
+    scroll = CLAMP(scroll, 0, numgames-1);
+    selected = CLAMP(selected, 0, numgames-1);
+
+    int top = scroll, bottom = scroll + ENTRIES - 1;
+    if( pg == -1 ) if( selected != top    ) selected = top;    else selected = (scroll -= ENTRIES);
+    if( pg == +1 ) if( selected != bottom ) selected = bottom; else selected = (scroll += ENTRIES) + ENTRIES - 1;
+    if( up == -1 ) if( selected != top    ) --selected; else --selected, --scroll;
+    if( up == +1 ) if( selected != bottom ) ++selected; else ++selected, ++scroll;
+
+    if( home ) scroll = selected = 0;
+    if( end  ) scroll = selected = numgames-1, scroll -= ENTRIES - 1;
+
+    scroll = CLAMP(scroll, 0, numgames-1);
+    selected = CLAMP(selected, 0, numgames-1);
+
+    // update filter
+    int has_finder = !!num_options;
+    int any = game_filter();
+
+    if( window_trigger(app, TK_RETURN) && !has_finder ) {
+        return selected;
+    }
+
+    return -1;
+}
+
 char* game_browser_v1() {
-//  tigrBlitTint(app, app, 0,0, 0,0, _320,_240, tigrRGB(128,128,128));
+    int press_backspace = tigrKeyDown(app, TK_BACKSPACE);
+    int has_finder = !!num_options;
+
+    enum { ENTRIES = (_240/11)-2 };
+    int chosen = game_browser_keyboard(ENTRIES, numgames);
+        // returns '..' if finder is not visible
+        if( press_backspace && !has_finder ) return selected = 0, scroll = 0, games[0];
+        // returns game selection
+        if( chosen >= 0 ) {
+            // if chosen is a dir, reset scroll&cursor for next frame
+            if( strendi(games[chosen], "/") ) {
+                scroll = 0, selected = 0;
+            }
+            // returns selection
+            return games[chosen];
+        }
+
 
     int clicked = 0;
-    enum { ENTRIES = (_240/11)-4 };
-    static char *buffer = 0; if(!buffer) { buffer = malloc(65536); /*rescan();*/ }
-    if (!numgames) return 0;
-    if( scroll < 0 ) scroll = 0;
-    for( int i = scroll; i < numgames && i < scroll+ENTRIES; ++i ) {
-        const char starred = dbgames[i] >> 8 ? (char)(dbgames[i] >> 8) : ' ';
-        sprintf(buffer, "%c%c %3d.%s%s\n", 
-            (dbgames[i] & 0x7F) == 0 ? '\x7' :        // untested
-            (dbgames[i] & 0x7F) == 1 ? '\x4' :        // ok
-            (dbgames[i] & 0x7F) == 2 ? '\x2' : '\x6', // bug:warn
-            starred, i+1, i == selected ? " > ":" ", 1+strrchr(games[i], DIR_SEP) );
 
-        ui_at(ui, 1*11, (3+(i-scroll-1)) * 11 );
+    static char *buffer = 0; if(!buffer) { buffer = malloc(65536); /*rescan();*/ }
+
+    int y = 0;
+    for( int j = 0; j < ENTRIES; ++j ) {
+        int i = scroll + j;
+        if( i < 0 ) continue;
+        if( i >= numgames ) continue;
+
+        const char *sep = strrchr(games[i], *DIR_SEP_);
+        int is_dir = sep[1] == '\0';
+        if( is_dir ) while(0[--sep] != '/');
+
+        int color = 
+            (dbgames[i] & 0x7F) == 0 ? '\x7' :        // untested
+            (dbgames[i] & 0x7F) == 1 ? '\x4' :        // good
+            (dbgames[i] & 0x7F) == 2 ? '\x2' : '\x6'; // fail:warn
+
+        const char *title = sep+1;
+
+        char wildcard[128] = {0};
+        if( filter && filter[0] && snprintf(wildcard, 128, "*%s*", filter) ) {
+            ui_alpha = 128;
+            if( strmatchi(title, wildcard) ) ui_alpha = 255;
+        }
+
+        const char starred = dbgames[i] >> 8 ? (char)(dbgames[i] >> 8) : ' ';
+        sprintf(buffer, "%c%c %3d.%s ",
+            color, starred,
+            i+1, i == selected ? ">":" ");
+
+        ui_at(ui, 1*11, (2+y++) * 11 );
+        ui_label(buffer);
+
+        sprintf(buffer, "%s%.*s\n",
+            is_dir ? "\6" FOLDER_STR "\7\f" : "", (int)(strlen(title) - is_dir), title );
+
         if( ui_click(NULL, buffer) ) selected = i, clicked = 1;
     }
 
-    int up = 0, pg = 0;
-
-    static int UPcnt = 0; UPcnt *= !!window_pressed(app, TK_UP);
-    if( window_pressed(app, TK_UP) && (UPcnt++ == 0 || UPcnt > 32) ) {
-        up = -1;
-    } UPcnt *= !!window_pressed(app, TK_UP);
-    static int DNcnt = 0; DNcnt *= !!window_pressed(app, TK_DOWN);
-    if( window_pressed(app, TK_DOWN) && (DNcnt++ == 0 || DNcnt > 32) ) {
-        up = +1;
-    } DNcnt *= !!window_pressed(app, TK_DOWN);
-    static int PGUPcnt = 0; PGUPcnt *= !!window_pressed(app, TK_PAGEUP);
-    if( window_pressed(app, TK_PAGEUP) && (PGUPcnt++ == 0 || PGUPcnt > 32) ) {
-        pg = -1;
-    } PGUPcnt *= !!window_pressed(app, TK_PAGEUP);
-    static int PGDNcnt = 0; PGDNcnt *= !!window_pressed(app, TK_PAGEDN);
-    if( window_pressed(app, TK_PAGEDN) && (PGDNcnt++ == 0 || PGDNcnt > 32) ) {
-        pg = +1;
-    } PGDNcnt *= !!window_pressed(app, TK_PAGEDN);
-
     // issue browser
-    if( window_trigger(app, TK_LEFT)  ) { for(--up; (selected+up) >= 0 && (dbgames[selected+up]&0xFF) <= 1; --up ) ; }
-    if( window_trigger(app, TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
-
-    for(;up < 0;++up) {
-        --selected;
-        if( selected < scroll ) --scroll;
-    }
-    for(;up > 0;--up) {
-        ++selected;
-        if( selected >= (scroll+ENTRIES) ) ++scroll;
-    }
-    for(;pg < 0;++pg) {
-        if( selected != scroll ) selected = scroll;
-        else scroll -= ENTRIES, selected -= ENTRIES;
-    }
-    for(;pg > 0;--pg) {
-        if( selected != scroll+ENTRIES-1 ) selected = scroll+ENTRIES-1;
-        else scroll += ENTRIES, selected += ENTRIES;
-    }
-
-    scroll = scroll < 0 ? 0 : scroll >= numgames - ENTRIES ? numgames-ENTRIES-1 : scroll;
-    selected = selected < scroll ? scroll : selected >= (scroll + ENTRIES + 1) ? scroll + ENTRIES : selected;
-    selected = selected < 0 ? 0 : selected >= numgames ? numgames-1 : selected;
-
-    // filter
-        static int chars[16] = {0}, chars_count = -1;
-        #define RESET_INPUTBOX() do { memset(chars, 0, sizeof(int)*16); chars_count = -1; } while(0)
-    #if 0
-        int any = 0;
-        // Grab any chars and add them to our buffer.
-        for(;;) {
-            int c = tigrReadChar(app);
-            if (c == 0) break;
-            if( window_pressed(app,TK_CONTROL)) break;
-            if( c == 8 ) { RESET_INPUTBOX(); break; } // memset(chars, 0, sizeof(int)*16); chars_count = -1; break; }
-            if( c == '\t' && chars_count > 0 ) { any = 1; break; }
-            if( c <= 32 ) continue;
-            else any = 1;
-            chars[ chars_count = min(chars_count+1, 15) ] = c;
-        }
-        // Print out the character buffer too.
-        char tmp[1+16*6], *p = tmp;
-        for (int n=0;n<16;n++)
-            p = tigrEncodeUTF8(p, chars[n]);
-        *p = 0;
-        char tmp2[16+16*6] = "Find:"; strcat(tmp2, tmp);
-        window_printxycol(ui, tmp2, 3,1, tigrRGB(0,192,255));
-        if( any ) {
-            static char lowercase[1024];
-            for(int i = 0; tmp[i]; ++i) tmp[i] |= 32;
-            int found = 0;
-            if(!found)
-            for( int i = scroll+1; i < numgames; ++i ) {
-                if (i < 0) continue;
-                for(int j = 0; games[i][j]; ++j) lowercase[j+1] = 0, lowercase[j] = games[i][j] | 32;
-                if( strstr(lowercase, tmp) ) {
-                    scroll = selected = i;
-                    found = 1;
-                    break;
-                }
-            }
-            if(!found)
-            for( int i = 0; i < scroll; ++i ) {
-                for(int j = 0; games[i][j]; ++j) lowercase[j+1] = 0, lowercase[j] = games[i][j] | 32;
-                if( strstr(lowercase, tmp) ) {
-                    scroll = selected = i;
-                    found = 1;
-                    break;
-                }
-            }
-        }
-    #endif
+    // if( window_trigger(app, TK_LEFT)  ) { for(--up; (selected+up) >= 0 && (dbgames[selected+up]&0xFF) <= 1; --up ) ; }
+    // if( window_trigger(app, TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
 
     if( window_pressed(app, TK_CONTROL) || window_trigger(app, TK_SPACE) ) {
         int update = 0;
@@ -580,8 +642,7 @@ char* game_browser_v1() {
         }
     }
 
-    if( window_trigger(app, TK_RETURN) || clicked ) {
-        RESET_INPUTBOX();
+    if( clicked ) {
         return games[selected];
     }
 
@@ -609,7 +670,6 @@ char* game_browser_v2() {
     int right = window_keyrepeat(app, TK_RIGHT);
     int page_up = window_keyrepeat(app,TK_PAGEUP);
     int page_down = window_keyrepeat(app,TK_PAGEDN);
-
 
     // constants
 
@@ -641,18 +701,16 @@ char* game_browser_v2() {
     ui_at(ui, 11-4-2, UPPER_SPACING);
 
 //  static const char *tab = 0;
-    static const char *tabs = "\x15\x17#ABCDEFGHIJKLMNOPQRSTUVWXYZ\x12\x18";
+    static const char *tabs = "\x17#ABCDEFGHIJKLMNOPQRSTUVWXYZ\x12\x18"; // "⧖"
 
-    do_once tab = tabs+3; // 'A'
+    do_once tab = tabs+2; // 'A'
 
     for(int i = 0; tabs[i]; ++i) {
-        if( (ui_at(ui, ui_x+4+8*(i==1), ui_y), ui_button(NULL, va("%c%c", (tab && tabs[i] == *tab) ? 5 : 7, tabs[i])) )) {
+        if( (ui_at(ui, ui_x+4+20*(i==0), ui_y), ui_button(NULL, va("%c%c", (tab && tabs[i] == *tab) ? 5 : 7, tabs[i])) )) {
             if( ui_hover ) {
-                /**/ if(tabs[i] == '\x15') ui_notify( "-Resume-" );
-                else if(tabs[i] == '\x17') ui_notify( "-Browse local folder-\nClick again to change folder" );
+                /**/ if(tabs[i] == '\x17') ui_notify( "-Browse local folder-\nClick again to change folder" );
                 else if(tabs[i] == '\x12') ui_notify( "-List Bookmarks-\nClick again to change thumbnails view" );
                 else if(tabs[i] == '\x18') ui_notify( "-Search game-" );
-//              else if(tabs[i] == '\x19') ui_notify( "-Toggle thumbnails-" );
                 else if(tabs[i] ==    '#') ui_notify( "-List other games-\nClick again to change thumbnails view" );
                 else                       ui_notify( va("-List %c games-\nClick again to change thumbnails view", tabs[i]) );
             }
@@ -676,30 +734,21 @@ char* game_browser_v2() {
     if( left )  if(!tab) tab = tabs; else if(*tab-- == '#') tab = tabs + 29;
     if( right ) if(!tab) tab = tabs; else if(*tab++ == 'Z') tab = tabs +  3;
 #else
+    const char *first = strchr(tabs,numgames ? '\x17' : '#'), *last = strrchr(tabs,'\x12');
+
     if(!tab) tab = tabs;
-    if( tab >= (tabs+2) && tab <= (tabs+29) ) {
-    if( left  ) if(*tab-- ==    '#') tab = tabs + 29;
-    if( right ) if(*tab++ == '\x12') tab = tabs +  2;
-    } else {
-    if( tab < (tabs+ 2) ) tab = left ? tabs + 29 : right ? tabs + 2 : tab;
-    if( tab > (tabs+29) ) tab = left ? tabs + 29 : right ? tabs + 2 : tab;
-    }
+    tab += right - left;
+    if( tab < first || tab > last ) tab = left ? last : right ? first : tab;
 #endif
 
     static const char *prev = 0;
     if( tab && prev != tab ) {
 
-        if( *tab == '\x15' ) {
-            tab = 0;
-            //active = 0;
-            return NULL;
-        }
-        else
-        if( *tab == '\x18' ) {
-            tab = 0;
-            prev = 0;
+        selected = scroll = 0; // reset keyboard scroller
 
-            const char *search = prompt("Game search", "Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path", "");
+        if( *tab == '\x18' ) {
+
+            const char *search = prompt("Game search", ""/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
             if( search && search[0] ) {
                 int found = 0;
 
@@ -720,6 +769,9 @@ char* game_browser_v2() {
                 }
 
                 if( found ) {
+                    tab = 0;
+                    prev = 0;
+
                     active = 0;
                     //list = 0;
                     //list_num = 0;
@@ -728,6 +780,9 @@ char* game_browser_v2() {
 
                 alert("Not found");
             }
+
+            // something went wrong. undo to previous tab
+            tab = prev;
         }
         else
         if( *tab == '\x17' ) {
@@ -824,12 +879,14 @@ char* game_browser_v2() {
 
     ui_at(ui, 0, UPPER_SPACING+2*LINE_HEIGHT);
 
-    int ENTRIES_PER_PAGE = (_240-ui_y-BOTTOM_SPACING)/LINE_HEIGHT;
+    int ENTRIES_PER_PAGE = 25; // (_240-ui_y-BOTTOM_SPACING)/LINE_HEIGHT;
 
+    if( thumbnails == 0 ) ENTRIES_PER_PAGE = 25;
     if( thumbnails == 3 ) ENTRIES_PER_PAGE = 3*3;
     if( thumbnails == 6 ) ENTRIES_PER_PAGE = 6*6;
     if( thumbnails == 12 ) ENTRIES_PER_PAGE = 12*12;
 
+#if 0
     int NUM_PAGES = list_num / ENTRIES_PER_PAGE;
     int trailing_page = list_num % ENTRIES_PER_PAGE;
     NUM_PAGES -= NUM_PAGES && !trailing_page;
@@ -842,13 +899,23 @@ char* game_browser_v2() {
 
     if( window_pressed(app, TK_HOME) ) page = 0;
     if( window_pressed(app, TK_END)  ) page = NUM_PAGES;
+#endif
+
+    int chosen = game_browser_keyboard(ENTRIES_PER_PAGE, list_num);
 
     static byte frame4 = 0; frame4 = (frame4 + 1) & 3; // 4-frame anim
     static byte frame8 = 0; frame8 = (frame8 + 1) & 7; // 8-frame anim
 
+    if( 0 && thumbnails ) {
+        scroll = scroll - (sqrt(ENTRIES_PER_PAGE) - (scroll % (int)sqrt(ENTRIES_PER_PAGE)));
+        if( scroll < 0 ) scroll = 0;
+    }
+
     if( list )
-    for( int len, cnt = 0, i = page * ENTRIES_PER_PAGE, end = (page + 1) * ENTRIES_PER_PAGE;
-        i < end && i < list_num; ++i, ++cnt ) {
+    for( int j = 0, cnt = 0, len; j < ENTRIES_PER_PAGE; ++j, ++cnt ) {
+        int i = scroll + j;
+        if( i < 0 ) continue;
+        if( i >= list_num ) continue;
 
         char *zx_id = (char*)*list[i];
         char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
@@ -902,25 +969,33 @@ char* game_browser_v2() {
         int flag = (vars >> 4) & 0x0f; assert(flag <= 3);
 
         // build title and clean it up
-        char full_title[128];
-        snprintf(full_title, sizeof(full_title), " %.*s (%.*s)(%.*s)\n", title_len, title, years_len, years, brand_len, brand);
+        char full_title[64];
+        snprintf(full_title, sizeof(full_title), " %.*s (%.*s)(%.*s)", title_len, title, years_len, years, brand_len, brand);
         for( int i = 1; full_title[i]; ++i )
             if( i == 1 || full_title[i-1] == '.' )
                 full_title[i] = toupper(full_title[i]);
 
         full_title[0] = colors[flag];
 
+        int clicked = 0, flagged = 0, starred = 0;
+        int iterated = selected == i;
+        int filtered = 0;
+
+        char wildcard[128] = {0};
+        if( filter && filter[0] && snprintf(wildcard, 128, "*%s*", filter) ) {
+            ui_alpha = 128;
+            if( strmatchi(full_title, wildcard) ) ui_alpha = 255, filtered = 1;
+        }
+
         if( !thumbnails ) {
 
-            ui_label(va("%c  %3d.%s", colors[0], i+1, loaded ? ">":" "));
+            ui_label(va("%c %c%3d.%s", colors[0], loaded ? '*':' ', i+1, i==selected ? ">":" "));
 
             if( ui_click("-Toggle bookmark-", va("%c\f", "\x10\x12"[!!star])) )
-                star = !star;
+                starred = 1;
 
-            if( ui_click("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good", va("%c%s", colors[flag], flag == 0 ? "":"")) )
-                flag = (flag + 1) % 4;
-
-            cache_set(dbid, (vars & 0xff00) | (flag << 4) | star);
+            if( ui_click("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good", va("%c%s", colors[flag], flag == 0 || flag == 3 ? "✓":"╳")) ) // "":""
+                flagged = 1;
 
             ui_label(" ");
 
@@ -944,25 +1019,17 @@ char* game_browser_v2() {
                 }
 
                 if( ui_click ) {
-                    zxdb_load(va("#%.*s", zx_id_len, zx_id), 0);
-
-                    active = 0;
-
-#if 0
-        //          tab = 0;
-                    prev = 0;
-                    list = 0;
-                    list_num = 0;
-#endif
-                    return NULL;
+                    clicked = 1;
                 }
             }
+
+            ui_button(NULL, "\n");
+            ui_y--; // compact
         }
         else {
             int t = thumbnails;
             int w = _320/t, h = (_240-16)/t;
             int x = (cnt % t) * w, y = 16 + (cnt / t) * h;
-            int clicked = 0;
             int has_thumb = 0;
 
             int factor = t == 3 ? 1 : t == 6 ? 2 : 3;
@@ -978,30 +1045,32 @@ char* game_browser_v2() {
                 has_thumb = 1;
             }
 
-            if( m.x >= x && m.x < (x+w) && m.y >= y && m.y < (y+h) ) {
+            int mouse_hovering = m.x >= x && m.x < (x+w) && m.y >= y && m.y < (y+h);
+            if( mouse_hovering || iterated || filtered ) {
                 ui_rect(ui, x,y, x+w-1,y+h-1);
-
+            }
+            if( mouse_hovering || iterated ) {
                 ui_at(ui, x+2, y+2);
 
                 if( ui_click(NULL, va("%c\f", "\x10\x12"[!!star])) )
-                    star = !star;
+                    starred = 1;
 
-                if( ui_click(NULL, va("%c%s", colors[flag], flag == 0 ? "":"")) )
-                    flag = (flag + 1) % 4;
+                if( ui_click(NULL, va("%c%s", colors[flag], flag == 0 || flag == 3 ? "✓":"╳")) ) // "":""
+                    flagged = 1;
 
-                cache_set(dbid, (vars & 0xff00) | (flag << 4) | star);
-
-                if( m.x <= (x+10) && m.y <= (y+11) ) {
-                    ui_notify("-Toggle bookmark-");
-                }
-                else
-                if( m.x <= (x+10+10-4) && m.y <= (y+11) ) {
-                    ui_notify("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good");
-                }
-                else {
-                    mouse_cursor(2);
-                    ui_notify(full_title);
-                    clicked = m.lb;
+                if( mouse_hovering ) {
+                    if( m.x <= (x+10) && m.y <= (y+11) ) {
+                        ui_notify("-Toggle bookmark-");
+                    }
+                    else
+                    if( m.x <= (x+10+10-4) && m.y <= (y+11) ) {
+                        ui_notify("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good");
+                    }
+                    else {
+                        mouse_cursor(2);
+                        ui_notify(full_title);
+                        clicked = m.lb;
+                    }
                 }
             }
             else {
@@ -1020,20 +1089,32 @@ char* game_browser_v2() {
                     if( ui_click(id, id) ) clicked = 1;
                 }
             }
+        }
 
-            if( clicked ) {
-                zxdb_load(va("#%.*s", zx_id_len, zx_id), 0);
+        if( !num_options )
+        if( selected == i ) {
+            if( tigrKeyDown(app, TK_SPACE) && !tigrKeyHeld(app, TK_SHIFT) ) flagged = 1;
+            if( tigrKeyDown(app, TK_SPACE) &&  tigrKeyHeld(app, TK_SHIFT) ) starred = 1;
+        }
 
-                active = 0;
+        if( flagged || starred ) {
+            if( starred ) star = !star;
+            if( flagged ) flag = (flag + 1) % 4;
+            cache_set(dbid, (vars & 0xff00) | (flag << 4) | star);
+        }
+                    
+        if( clicked || (chosen >= 0 && chosen == i) ) {
+            selected = i;
 
+            zxdb_load(va("#%.*s", zx_id_len, zx_id), 0);
+            active = 0;
 #if 0
-    //          tab = 0;
-                prev = 0;
-                list = 0;
-                list_num = 0;
+//          tab = 0;
+            prev = 0;
+            list = 0;
+            list_num = 0;
 #endif
-                return NULL;
-            }
+            return NULL;
         }
     }
 

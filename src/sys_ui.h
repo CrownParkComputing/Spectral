@@ -737,7 +737,7 @@ int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t
     return 1;
 }
 
-int ui_find_index(unsigned glyph) {
+int ui_find_index(unsigned glyph) { // @todo: make it dichotomic, faster
     if( glyph )
     for( int i = 0; glyph >= theFont[i][0]; ++i ) {
         if( glyph == theFont[i][0] ) {
@@ -777,13 +777,14 @@ int ui_print_index(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t ui
     return 0;
 }
 
+extern int ui_alpha;
 int ui_print(Tigr *ui, int ui_x, int ui_y, rgba *colors, const char *utf8) {
     uint64_t ui_invert = 0;
     unsigned copyx = ui_x, copyy = ui_y;
     unsigned yqueue = 0, xmax = 0, ui_cr = ui_x;
     while( *utf8 ) {
         if( *utf8 == '~' ) { ui_invert ^= ~0uLL, ++utf8; continue; } // control code: invert bitmask
-        if( (byte)*utf8 <= 0x7 ) { if(colors) colors[1] = ((TPixel){(!!(*utf8 & 2))*255,(!!(*utf8 & 4))*255,(!!(*utf8 & 1))*255,255}).rgba; ++utf8; continue; } // control code: color
+        if( (byte)*utf8 <= 0x7 ) { if(colors) colors[1] = ((TPixel){(!!(*utf8 & 2))*255,(!!(*utf8 & 4))*255,(!!(*utf8 & 1))*255,(byte)ui_alpha}).rgba; ++utf8; continue; } // control code: color
         if( *utf8 == '\f') { ++ui_x; ++utf8; continue; }
 
         int lf = *utf8 == '\n';
@@ -819,16 +820,17 @@ rgba ui_colors[] = { 0xff000000, 0xffffffff }; // ui_00 and ui_ff
 Tigr *ui_layer;
 int ui_x, ui_y, ui_cr; // ui text cursor coords (x,y) and carriage return coord (x)
 int ui_mx, ui_my, ui_lmb, ui_rmb, ui_click, ui_press, ui_hover; // ui mouse
-int ui_allow_links = 1;
+int ui_alpha, ui_allow_links = 1;
 
 typedef struct ui_stack {
 rgba ui_colors[2];
 Tigr *ui_layer;
 int ui_x, ui_y, ui_cr; // ui text cursor coords (x,y) and carriage return coord (x)
 int ui_mx, ui_my, ui_lmb, ui_rmb, ui_click, ui_press, ui_hover; // ui mouse
+int ui_alpha;
 } ui_stack;
 ui_stack ui_push() {
-    ui_stack x = {{ui_colors[0],ui_colors[1]},ui_layer,ui_x,ui_y,ui_cr,ui_mx,ui_my,ui_lmb,ui_rmb,ui_click,ui_press,ui_hover};
+    ui_stack x = {{ui_colors[0],ui_colors[1]},ui_layer,ui_x,ui_y,ui_cr,ui_mx,ui_my,ui_lmb,ui_rmb,ui_click,ui_press,ui_hover,ui_alpha};
     return x;
 }
 void ui_pop(ui_stack x) {
@@ -845,6 +847,7 @@ void ui_pop(ui_stack x) {
     ui_click = x.ui_click;
     ui_press = x.ui_press;
     ui_hover = x.ui_hover;
+    ui_alpha = x.ui_alpha;
 }
 
 
@@ -861,6 +864,8 @@ void ui_frame_begin() {
     ui_press = (mb & 3); // L:1, R:2
     ui_click = (mb & 1) > (mb_prev & 1) || (mb & 2) > (mb_prev & 2); // L:1(down), R:2(down) @fixme:R:2(up)
     mb_prev = mb;
+
+    ui_alpha = 255;
 }
 
 void ui_at(Tigr *layer, int x, int y) {
@@ -1000,10 +1005,12 @@ int ui_button(const char *hint8, const char *utf8) {
     ui_hover *= (ui_mx < _320 && ui_my < _240);
 
     if( ui_hover && ui_allow_links ) {
+        TPixel color = ui_ff; color.a = color.a * 0.50 + ui_alpha * 0.50;
+
         // underline
         int lx = ui_x-1, lw = w+2, ly = ui_y+h + 1, lh = 1;
         tigrLine(ui_layer, lx+1, ly+1, lx+lw+1, ly+1, ui_00);
-        tigrLine(ui_layer, lx,   ly,   lx+lw,   ly,   ui_ff);
+        tigrLine(ui_layer, lx,   ly,   lx+lw,   ly,   color); //ui_ff);
 
         // cursor hand
         mouse_cursor(2);
@@ -1028,6 +1035,9 @@ int ui_button(const char *hint8, const char *utf8) {
         if( !(lf+cr+bs) ) ui_x += theFontW + ui_monospaced * theFontPaddingW - !ui_monospaced * (((ui_widths_index(ui_find_index(glyph)) >> 8) & 255) + theFontPaddingW);
     }
     ui_y += nl * theFontLineSpacing;
+
+    if( nl > 1 )
+    ui_alpha = 255;
 
     return ui_hover;
 }
@@ -1128,35 +1138,27 @@ struct dialog_option {
 
     void (*on_click)(const char*); const char *args; unsigned cmd;
 
-    int w, h, lf;
+    int w, h, lf, center; // @todo align (<)left,(=)center,(>)right
 
 } options[256] = {0}; int num_options = 0;
 
-int ui_dialog_new() {
-    for( int i = 0; i < num_options; ++i) {
-        if(options[i].text) (void)REALLOC((void*)options[i].text, 0);
-        if(options[i].help) (void)REALLOC((void*)options[i].help, 0);
-        if(options[i].args) (void)REALLOC((void*)options[i].args, 0);
-    }
-    num_options = 0;
-
-    smooth = 0;
-    return 0;
-}
-
 int ui_dialog_option_ex(unsigned flags, const char *text, const char *help, void (*on_click)(const char*), const char *args) {
+    int align = text && *text == '<';
+    if( align ) text += align;
+
     text = text ? STRDUP(text) : STRDUP(" ");
     help = help ? STRDUP(help) : NULL;
     args = args ? STRDUP(args) : NULL;
 
+    int lfs = strcnt(text, '\n');
     enum { LINE_SPACING = 3 };
     int dims2 = ui_print(0, 0, 0, NULL, text);
     int w2 = dims2 & 0xFFFF;
-    int h2 = dims2 >> 16;
+    int h2 =(dims2 >> 16) + (lfs ? (lfs-1) * theFontH : 0);
     int lines2 = 1 + h2 / theFontH;
-    int lf = !!strchr(text, '\n');
+    int lf = !!lfs;
 
-    options[num_options++] = ((struct dialog_option){text,help,flags,on_click,args,0,w2,h2 + LINE_SPACING,lf});
+    options[num_options++] = ((struct dialog_option){text,help,flags,on_click,args,0,w2,h2 + LINE_SPACING,lf,!align});
     return 0;
 }
 
@@ -1171,6 +1173,24 @@ int ui_dialog_separator() {
 }
 int ui_dialog_cancel() {
     return ui_dialog_option(1, "Cancel\n", NULL, 0, NULL);
+}
+
+int ui_dialog_new(const char *title) {
+    for( int i = 0; i < num_options; ++i) {
+        if(options[i].text) (void)REALLOC((void*)options[i].text, 0);
+        if(options[i].help) (void)REALLOC((void*)options[i].help, 0);
+        if(options[i].args) (void)REALLOC((void*)options[i].args, 0);
+    }
+    num_options = 0;
+
+    smooth = 0;
+
+    if(title) {
+        ui_dialog_option(0, va("%s\n",title),NULL, 0,NULL);
+        ui_dialog_separator();
+    }
+
+    return 0;
 }
 
 int ui_dialog_render(Tigr *dialog) {
@@ -1206,6 +1226,21 @@ int ui_dialog_render(Tigr *dialog) {
         tigrFillRect(dialog, -1, y1, _321, y2-y1+1, transp);
         tigrLine(dialog, -1,y1, _321,y1, ((TPixel){255,255,255,255}));
         tigrLine(dialog, -1,y2, _321,y2, ((TPixel){255,255,255,255}));
+        
+        // calc longest line
+        int maxw = 0;
+        for( int i = 0; i < num_options; ++i ) {
+            int _0 = 0;
+
+            for( int j = i ; !options[j].lf ; ) {
+                do _0 += options[j++].w; while( !options[j-1].lf && (j-1) < num_options );
+                _0 += (j-i-1) * theFontW; // word spaces
+            }
+
+            if( !_0 ) _0 += options[i].w + theFontW;
+
+            maxw = max(maxw, _0);
+        }
 
         // draw dialog entries at center of screen
 
@@ -1215,17 +1250,23 @@ int ui_dialog_render(Tigr *dialog) {
         ui_colors[0] &= RGB(255,255,255); ui_colors[0] |= alpha;
 
         int chosen = -1;
+        int _0 = 0;
 
         for( int i = 0; i < num_options; ++i ) {
 
+            _0 = options[i].center ?  0 : (_320-maxw)/2;
+            x0 = options[i].center ? x0 : _0;
+
             // center group horizontally
-            for( int j = i ; x0 == 0 ; x0 = (_320-x0) / 2 ) {
+            if( options[i].center ) {
+            for( int j = i ; x0 == _0 ; x0 = (_320-x0) / 2 ) {
                 do x0 += options[j++].w; while( !options[j-1].lf && (j-1) < num_options );
                 x0 += (j-i-1) * theFontW; // word spaces
             }
+            }
 
             ui_at(dialog, x0, y0);
-            if( options[i].lf ) x0 = 0, y0 += options[i].h; else x0 += options[i].w + theFontW;
+            if( options[i].lf ) x0 = _0, y0 += options[i].h; else x0 += options[i].w + theFontW;
 
             ui_colors[1] = RGB(255,255,255) | alpha;
             ui_allow_links = options[i].flags & 1;
@@ -1242,7 +1283,8 @@ int ui_dialog_render(Tigr *dialog) {
             struct dialog_option bak = options[chosen];
             if(bak.args) bak.args = va("%s", bak.args);
 
-            ui_dialog_new();
+            int ui_dialog_new(const char *);
+            ui_dialog_new(NULL);
 
             if( bak.on_click ) {
                 bak.on_click(bak.args);
