@@ -36,7 +36,8 @@ rem convert if requested
 if "%errorlevel%"=="1" (
 python -m gzip -d Spectral.db.gz && git add Spectral.db
 
-zxdb2txt 0..65535 > Spectral.db && python -m gzip --best Spectral.db && echo Ok!
+rem do 0..64K range in reverse order to avoid being threated as false positive (Trojan:Win32/Wacatac.B!ml) (Windows Defender)
+zxdb2txt 65536..0 > Spectral.db && python -m gzip --best Spectral.db && echo Ok!
 
 git diff Spectral.db >> Spectral.db.diff && git add Spectral.db.diff && git rm Spectral.db -f
 )

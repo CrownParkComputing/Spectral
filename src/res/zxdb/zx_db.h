@@ -254,7 +254,7 @@ zxdb zxdb_search_by_expr(const char *expr) {
 
     // returns query "/file_link|release_seq|filetype_id|filetype". exclude 38 original artwork, 40 additional materials
     #define ZXDB_DOWNLOADS \
-    "select file_link,release_seq,filetype_id,(select text from filetypes where id = D.filetype_id) as filetype from downloads D " \
+    "select file_link,release_seq,filetype_id,(select text from filetypes where id = D.filetype_id) as filetype" /*,file_md5*/ " from downloads D " \
     " where entry_id=%d AND filetype_id<>38 AND filetype_id<>40 order by filetype_id,release_seq limit 63;", atoi(z.id)
 
     // returns query "@role|author|team"

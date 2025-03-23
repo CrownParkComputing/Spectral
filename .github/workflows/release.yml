@@ -45,11 +45,9 @@ jobs:
 
   build-windows:
     needs: create-release
-    runs-on: windows-latest
+    runs-on: windows-2019
     steps:
       - uses: actions/checkout@v3
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.1
       - name: Build Windows
         run: ./MAKE.bat
       - name: Upload Windows Artifact

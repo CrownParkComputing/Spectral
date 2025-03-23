@@ -15,7 +15,7 @@
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 
-#define SPECTRAL "v1.04"
+#define SPECTRAL "v1.041"
 
 #if NDEBUG >= 2
 #define DEV 0
@@ -406,8 +406,8 @@ void input() {
 
 
 enum { OVERLAY_ALPHA = 96 };
-window *app, *ui, *dbg, *overlay, *dialog; int do_overlay;
-int do_disasm;
+window *app, *ui, *dbg, *overlay, *dialog, *irc; 
+int do_overlay, do_disasm, do_irc = 0;
 float fps;
 
 
@@ -1189,6 +1189,8 @@ int main() {
     dbg = window_bitmap(_320, _240);
     overlay = window_bitmap(_320, _240);
     dialog = window_bitmap(_320, _240);
+    irc = window_bitmap(_320, _240);
+    tigrClear(irc, tigrRGBA(0,0,0,128));
 
     // postfx
     crt(ZX_CRT);
@@ -1783,6 +1785,33 @@ int gui(const char *status) {
         tigrBlitAlpha(app, overlay, x,y, 0,0, _320,_240, 1.0f);
     }
 
+    if( do_irc ) {
+
+        do_once {
+            int chat_printf(const char *fmt, ...);
+            ircd_printf = chat_printf;
+
+            static char host[] = "eu.dal.net"; // irc.dal.net eu.dal.net uk.eu.dal.net halcyon.dal.net
+            static int port = 6667;
+
+        #ifdef _WIN32
+            WSADATA wsa;
+            WSAStartup(MAKEWORD(2, 2), &wsa);
+        #endif
+
+            strcpy(m_ircd.nick, "rlyeh");
+            strcpy(m_ircd.name, "Player");
+            strcpy(m_ircd.chan, "#spectral105");
+
+            ircd_init(&m_ircd, host, port);
+        }
+
+        ircd_update(&m_ircd);
+
+        int x = 0, y = 0;
+        tigrBlitAlpha(app, irc, x,y, 0,0, _320,_240, 1.0f);
+    }
+
     // render dialog modal on top
     if( ui_dialog_render(dialog) ) {
         // composite result
@@ -1823,4 +1852,44 @@ int rec() {
         record_frame( app->pix, app->w, app->h );
     }
     return 1;
+}
+
+int chat_printf(const char *fmt, ...) {
+    static char *buf = 0; if(!buf) buf = REALLOC(0,64*1024);
+    
+    va_list vl;
+    va_start(vl,fmt);
+    int rc = vsnprintf(buf, 64*1024-1, fmt, vl);
+    va_end(vl);
+
+    printf("%s", buf);
+
+    if( *buf == ':' ) {
+        replace(buf, "~", "-"); // for ui_print()
+
+        static int x = 0, y = 0;
+        ui_stack bak = ui_push();
+        ui_at(irc, x,y);
+
+        char *buf2 = buf, *line;
+        while( NULL != (line = strsep(&buf2, "\r\n")) ) {
+            if( *line == '\r' || *line == '\n' ) continue;
+            char *text = 0; {
+                if( *line == ':' ) {
+                    text = strchr(line+1, ':');
+                    if( text && *text == ':' ) ++text;
+                } 
+            }
+            if( text ) {
+                ui_label(text);
+                ui_x = 0;
+                ui_y += 11;
+            }
+        }
+
+        x = ui_x, y = ui_y;
+        ui_pop(bak);
+    }
+
+    return rc;
 }

@@ -72,3 +72,5 @@
 #include "3rd_gamepad.h"
 
 #include "3rd_jompeg.h"
+
+#include "3rd_irc.h"
