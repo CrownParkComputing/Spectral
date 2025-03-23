@@ -456,9 +456,12 @@ void draw_compatibility_stats(window *layer) {
 char *filter; // current text filter in use. can be NULL
 int game_filter() { // returns true if any key was pressed
     enum { _16 = 32, _15 = _16 - 1 };
-    static int chars[_16] = {0}, chars_count = -1;
+    static int chars[_16] = {0};
     static char utf8[5+_16*6+1] = "Find:";
     filter = utf8 + 5;
+
+        int chars_count = 0;
+        while(chars[chars_count] && chars_count < _16) chars_count++;
 
     int anykey = 0, done = 0, clear = 0;
     // Grab any chars and add them to our buffer.
@@ -467,13 +470,19 @@ int game_filter() { // returns true if any key was pressed
         if (c == 0) break;
         if( window_pressed(app,TK_CONTROL)) break;
         if( c == '\n' || c == '\r' ) { done = 1; break; }
-        if( c == '\b' || window_pressed(app, TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
-        if( c == '\t' && chars_count > 0 ) { anykey = 1; break; }
-        if( c < 32 ) continue;
-        if( c == 32 && chars_count < 0 ) continue;
-        if( c == 32 && chars_count > 0 && chars[chars_count] == 32 ) continue;
-        else anykey = 1;
-        chars[ chars_count = min(chars_count+1, _15) ] = c;
+        if( window_pressed(app, TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
+        if( c == '\t' && chars_count > 0 ) { anykey = 1; break; } // ?
+        if( c <  32 && c != '\b' ) continue;
+        if( c == 32 && chars_count == 0 ) continue;
+        if( c == 32 && chars_count >  0 && chars[chars_count-1] == 32 ) continue;
+        
+        anykey = 1;
+
+        if( c != '\b' )
+            chars[ (chars_count = min(chars_count+1,_15)) - 1 ] = c;
+        else
+        if( chars_count > 0 )
+            chars[ --chars_count ] = 0;
 
         char *p = filter;
         for (int n=0;n<_16;n++)
@@ -483,22 +492,26 @@ int game_filter() { // returns true if any key was pressed
 
     // display
 
+    int visible = num_options == 1 && (options[0].flags & 2) && options[0].text[0] == 'F';
+
     if( done ) {
         memset(chars, 0, sizeof(int)*_16);
-        chars_count = -1;
 
         if( clear ) *filter = '\0';
 
         ui_dialog_new(NULL);
     }
-    else if( anykey && *filter ) {
-        if( num_options == 1 && (options[0].flags & 2) && options[0].text[0] == 'F' ) {
-            (void)REALLOC((void*)options[0].text, 0);
-            options[0].text = STRDUP(va("%s▁\n",utf8));
-        }
-        else {
+    else {
+        if( !visible && anykey ) {
             ui_dialog_new(NULL);
             ui_dialog_option(2, va("<%s▁                             \n",utf8),NULL, 0,NULL);
+        }
+        if( visible && window_longpress(app, TK_BACKSPACE) ) {
+            memset(chars, chars_count = 0, sizeof(int)*_16); *filter = 0; anykey = 1;
+        }
+        if( visible && anykey ) {
+            (void)REALLOC((void*)options[0].text, 0);
+            options[0].text = STRDUP(va("%s▁\n",utf8));
         }
     }
 
@@ -1093,8 +1106,8 @@ char* game_browser_v2() {
 
         if( !num_options )
         if( selected == i ) {
-            if( tigrKeyDown(app, TK_SPACE) && !tigrKeyHeld(app, TK_SHIFT) ) flagged = 1;
-            if( tigrKeyDown(app, TK_SPACE) &&  tigrKeyHeld(app, TK_SHIFT) ) starred = 1;
+            if( tigrKeyHeld(app, TK_CONTROL) && tigrKeyDown(app, 'B') )      starred = 1;
+            if( tigrKeyHeld(app, TK_CONTROL) && tigrKeyDown(app, TK_SPACE) ) flagged = 1;
         }
 
         if( flagged || starred ) {

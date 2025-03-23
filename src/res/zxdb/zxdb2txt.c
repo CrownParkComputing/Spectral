@@ -9,14 +9,17 @@
 #define __thread __declspec(thread)
 #endif
 
+/*
 #ifndef do_once
 #define do_once static int once = 1; for(;once;once=0)
 #endif
+*/
 
 #undef countof
 #define countof(x) ((int)(sizeof(x) / sizeof(0[x])))
 
 #include "../../3rd.h"
+#include "../../sys_xplat.h"
 #include "../../sys_string.h"
 #include "sys_db.h"
 #include "../../sys_network.h"
@@ -39,11 +42,11 @@ int main(int argc, char **argv) {
             zxdb_free(zxdb_print(zxdb_search_by_filename(argv[1])));
         }
 
-        /**/ if( strstr(argv[1], "..") ) { // range of ids 0..65535
+        /**/ if( strstr(argv[1], "..") ) { // range of ids 0..65536
             uint64_t t = -time_ns();
 
-            for( int i = atoi(argv[1]), end = atoi(strstr(argv[1],"..")+2), pct_ = (end - i) / 100, pct = pct_ + !pct_; i < end; ++i ) {
-                if( !(i % pct) ) fprintf(stderr, "\r%d%%", (int)(i / pct) + 1);
+            for( int i = atoi(argv[1]), end = atoi(strstr(argv[1],"..")+2), inc = i < end ? +1 : -1, pct_ = abs(end - i) / 100, pct = pct_ + !pct_; i != end; i += inc ) {
+                if( !(i % pct) ) fprintf(stderr, "\r%3d%%", (int)(i / pct) + 1);
                 zxdb_free(zxdb_print(zxdb_search_by_id(i)));
             }
 
