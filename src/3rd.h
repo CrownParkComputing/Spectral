@@ -13,6 +13,7 @@
 #include "3rd_tigrmousecursor.h"
 #include "3rd_tigrdragndrop.h"
 #include "3rd_tigrtitle.h"
+#include "3rd_tigroskeys.h"
 #undef border
 #undef run
 
@@ -74,3 +75,6 @@
 #include "3rd_jompeg.h"
 
 #include "3rd_irc.h"
+
+#define STB_SPRINTF_IMPLEMENTATION
+#include "3rd_stb_sprintf.h"

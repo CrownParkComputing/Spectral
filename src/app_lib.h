@@ -1,3 +1,5 @@
+// @fixme: excessive va()
+
 #include "res/scr/question_mark"
 
 zxdb ZXDB2;
@@ -119,6 +121,26 @@ char *zxdb_screen(const char *id, int *len) {
 
 bool zxdb_load(const char *id, int ZX_MODEL) {
     if( id && id[0] && strcmp(id, "0") && strcmp(id, "#") ) {
+
+        const char *hint = "play";
+
+#if 0
+        // convert #game-id#release-seq format into {game,seq} pair
+        for( int gid, seq; sscanf(id, "#%d#%d", &gid, &seq ) == 2; ) {
+            static char clean[16], hints[16];
+            snprintf(clean, 15, "#%d", gid); id = clean;
+            snprintf(hints, 15, "#%d", seq); hint = hints+1;
+            break;
+        }
+#else
+        for( int gid, seq; sscanf(id, "#%d#%d", &gid, &seq ) == 2; ) {
+            hint = strrchr(id,'#')+1;
+            *strrchr(id,'#') = '\0';
+            break;
+        }
+#endif
+
+
         ZXDB2 = zxdb_search( id );
 
         if( ZXDB2.ids[0] ) {
@@ -126,7 +148,7 @@ bool zxdb_load(const char *id, int ZX_MODEL) {
 
             static char *data = 0;
             if( data ) free(data), data = 0;
-            if(!data ) data = zxdb_download(ZXDB2,zxdb_url(ZXDB2, "play"), &len);
+            if(!data ) data = zxdb_download(ZXDB2,zxdb_url(ZXDB2, hint), &len);
             if( data ) {
 
                 if( ZX_MODEL ) {
@@ -539,6 +561,8 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     int home = window_pressed(app, TK_HOME) || (window_pressed(app, TK_UP) && tigrKeyHeld(app, TK_CONTROL));
     int end  = window_pressed(app, TK_END) || (window_pressed(app, TK_DOWN) && tigrKeyHeld(app, TK_CONTROL));
 
+    scroll += tigrMouseWheel(app);
+
     scroll = CLAMP(scroll, 0, numgames-1);
     selected = CLAMP(selected, 0, numgames-1);
 
@@ -583,10 +607,9 @@ char* game_browser_v1() {
             return games[chosen];
         }
 
+    static char *buffer = 0; if(!buffer) { buffer = malloc(65536); /*rescan();*/ }
 
     int clicked = 0;
-
-    static char *buffer = 0; if(!buffer) { buffer = malloc(65536); /*rescan();*/ }
 
     int y = 0;
     for( int j = 0; j < ENTRIES; ++j ) {
@@ -595,13 +618,23 @@ char* game_browser_v1() {
         if( i >= numgames ) continue;
 
         const char *sep = strrchr(games[i], *DIR_SEP_);
-        int is_dir = sep[1] == '\0';
+        int is_dir = sep[1] == '\0', is_file = !is_dir;
         if( is_dir ) while(0[--sep] != '/');
 
-        int color = 
-            (dbgames[i] & 0x7F) == 0 ? '\x7' :        // untested
-            (dbgames[i] & 0x7F) == 1 ? '\x4' :        // good
-            (dbgames[i] & 0x7F) == 2 ? '\x2' : '\x6'; // fail:warn
+        int flagged = 0;
+        int starred = 0;
+        if( i == selected ) {
+        if( window_pressed(app, TK_SHIFT) && window_trigger(app, TK_SPACE) ) flagged = 1;
+        if(!window_pressed(app, TK_SHIFT) && window_trigger(app, TK_SPACE) ) starred = 1;
+        }
+
+        int stars = (dbgames[i] >> 8);
+        int flags = (dbgames[i] & 0x7F);
+        int color =
+            flags == 0 ? '\x7' : // untested
+            flags == 1 ? '\x2' : // fail
+            flags == 2 ? '\x6' : // warn
+                         '\x4' ; // good
 
         const char *title = sep+1;
 
@@ -611,49 +644,33 @@ char* game_browser_v1() {
             if( strmatchi(title, wildcard) ) ui_alpha = 255;
         }
 
-        const char starred = dbgames[i] >> 8 ? (char)(dbgames[i] >> 8) : ' ';
-        sprintf(buffer, "%c%c %3d.%s ",
-            color, starred,
-            i+1, i == selected ? ">":" ");
+        ui_at(ui, 1*11 + 3, (2+y++) * 11 + 2 );
 
-        ui_at(ui, 1*11, (2+y++) * 11 );
+        sprintf(buffer, "%3d.%s", i+1, i == selected ? ">":" ");
         ui_label(buffer);
 
-        sprintf(buffer, "%s%.*s\n",
-            is_dir ? "\6" FOLDER_STR "\7\f" : "", (int)(strlen(title) - is_dir), title );
+        if( is_file && ui_click("-Toggle bookmark-", va("%c\f", "\x10\x12"[!!stars])) )
+            starred = 1;
+
+        if( is_file && ui_click("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good", va("%c%s", color, flags == 0 || flags == 3 ? "✓":"╳")) ) // "":""
+            flagged = 1;
+
+        sprintf(buffer, "%s%c%.*s\n",
+            is_dir ? "\6" FOLDER_STR "\f" : " ", color, (int)(strlen(title) - is_dir), title );
 
         if( ui_click(NULL, buffer) ) selected = i, clicked = 1;
+
+        if( is_file )
+        if( starred || flagged ) {
+            if( flagged ) flags = (flags+1) % 4;
+            if( starred ) stars = stars != 'B' ? 'B' : 0;
+            db_set(games[i], dbgames[i] = flags + (stars << 8));
+        }
     }
 
     // issue browser
     // if( window_trigger(app, TK_LEFT)  ) { for(--up; (selected+up) >= 0 && (dbgames[selected+up]&0xFF) <= 1; --up ) ; }
     // if( window_trigger(app, TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
-
-    if( window_pressed(app, TK_CONTROL) || window_trigger(app, TK_SPACE) ) {
-        int update = 0;
-        int starred = dbgames[selected] >> 8;
-        int color = dbgames[selected] & 0xFF;
-        if( window_trigger(app, TK_SPACE) ) color = (color+1) % 4, update = 1;
-        if( window_trigger(app, 'D') ) starred = starred != 'D' ? 'D' : 0, update = 1; // disk error
-        if( window_trigger(app, 'T') ) starred = starred != 'T' ? 'T' : 0, update = 1; // tape error
-        if( window_trigger(app, 'I') ) starred = starred != 'I' ? 'I' : 0, update = 1; // i/o ports error
-        if( window_trigger(app, 'R') ) starred = starred != 'R' ? 'R' : 0, update = 1; // rom/bios error
-        if( window_trigger(app, 'E') ) starred = starred != 'E' ? 'E' : 0, update = 1; // emulation error
-        if( window_trigger(app, 'Z') ) starred = starred != 'Z' ? 'Z' : 0, update = 1; // zip error
-        if( window_trigger(app, 'S') ) starred = starred != 'S' ? 'S' : 0, update = 1; // star
-        if( window_trigger(app, '3') ) starred = starred != '3' ? '3' : 0, update = 1; // +3 only error
-        if( window_trigger(app, '4') ) starred = starred != '4' ? '4' : 0, update = 1; // 48K only error
-        if( window_trigger(app, '1') ) starred = starred != '1' ? '1' : 0, update = 1; // 128K only error
-        if( window_trigger(app, '0') ) starred = starred != '0' ? '0' : 0, update = 1; // USR0 only error
-        if( window_trigger(app, 'A') ) starred = starred != 'A' ? 'A' : 0, update = 1; // ay/audio error
-        if( window_trigger(app, 'V') ) starred = starred != 'V' ? 'V' : 0, update = 1; // video/vram error
-        if( window_trigger(app, 'H') ) starred = starred != 'H' ? 'H' : 0, update = 1; // hardware error
-        if( window_trigger(app, 'M') ) starred = starred != 'M' ? 'M' : 0, update = 1; // mem/multiload error
-        if(update) {
-            dbgames[selected] = color + (starred << 8);
-            db_set(games[selected], dbgames[selected]);
-        }
-    }
 
     if( clicked ) {
         return games[selected];
@@ -732,7 +749,9 @@ char* game_browser_v2() {
                     // reclick
                     if( *tab == '\x17' ) {
                         extern int cmdkey;
+                        extern const char *cmdarg;
                         cmdkey = 'SCAN';
+                        cmdarg = 0; // ZX_FOLDER;
                     } else {
                         int next[] = { [0]=3,[3]=6,[6]=12,[12]=0 };
                         thumbnails = next[thumbnails];
@@ -760,11 +779,11 @@ char* game_browser_v2() {
         selected = scroll = 0; // reset keyboard scroller
 
         if( *tab == '\x18' ) {
+            int found = 0;
 
             const char *search = prompt("Game search", ""/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
-            if( search && search[0] ) {
-                int found = 0;
 
+            if( search && search[0] ) {
                 if( !found && zxdb_load(search, 0) ) {
                     found = 1;
                 }
@@ -780,29 +799,27 @@ char* game_browser_v2() {
                 if( !found && zxdb_load(va("*%s*",search), 0) ) {
                     found = 1;
                 }
-
-                if( found ) {
-                    tab = 0;
-                    prev = 0;
-
-                    active = 0;
-                    //list = 0;
-                    //list_num = 0;
-                    return NULL;
-                }
-
-                alert("Not found");
             }
 
-            // something went wrong. undo to previous tab
+            // undo to previous tab
             tab = prev;
+            if(!tab) tab = tabs + 2; // 'A'
+
+            if( found ) {
+                active = 0;
+                //list = 0;
+                //list_num = 0;
+                return NULL;
+            }
+
+            alert("Not found");
         }
         else
         if( *tab == '\x17' ) {
             extern int cmdkey;
+            extern const char *cmdarg;
 
-            do_once
-            cmdkey = 'SCAN';
+            do_once cmdkey = 'SCAN', cmdarg = ZX_FOLDER;
 
             //ZX_BROWSER = 1; // decay to file browser
 
@@ -1106,8 +1123,8 @@ char* game_browser_v2() {
 
         if( !num_options )
         if( selected == i ) {
-            if( tigrKeyHeld(app, TK_CONTROL) && tigrKeyDown(app, 'B') )      starred = 1;
-            if( tigrKeyHeld(app, TK_CONTROL) && tigrKeyDown(app, TK_SPACE) ) flagged = 1;
+            if(!tigrKeyHeld(app, TK_SHIFT) && tigrKeyDown(app, TK_SPACE) ) starred = 1;
+            if( tigrKeyHeld(app, TK_SHIFT) && tigrKeyDown(app, TK_SPACE) ) flagged = 1;
         }
 
         if( flagged || starred ) {
@@ -1119,7 +1136,6 @@ char* game_browser_v2() {
         if( clicked || (chosen >= 0 && chosen == i) ) {
             selected = i;
 
-            zxdb_load(va("#%.*s", zx_id_len, zx_id), 0);
             active = 0;
 #if 0
 //          tab = 0;
@@ -1127,7 +1143,12 @@ char* game_browser_v2() {
             list = 0;
             list_num = 0;
 #endif
-            return NULL;
+
+            extern int cmdkey;
+            extern const char *cmdarg;
+            cmdkey = 'ZXDB', cmdarg = va("#%.*s", zx_id_len, zx_id);
+
+            //return NULL;
         }
     }
 

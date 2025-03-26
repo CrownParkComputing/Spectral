@@ -11,7 +11,7 @@ wchar_t* widen( const char* input ) {
     }
     int inlen = strlen(input);
     int outlen = MultiByteToWideChar(CP_UTF8, 0, input, inlen, 0, 0);
-    wchar_t *output = (wchar_t*)va("%.*s", (outlen+1) * sizeof(wchar_t), "");
+    wchar_t *output = (wchar_t*)va("%*.s", (int)((outlen+1) * sizeof(wchar_t)), "");
     if( output ) {
         MultiByteToWideChar(CP_UTF8, 0, input, inlen, output, outlen);
         output[outlen] = L'\0';
@@ -26,7 +26,7 @@ char* shorten( const wchar_t* input ) {
     }
     int inlen = wcslen(input);
     int outlen = WideCharToMultiByte(CP_UTF8, 0, input, inlen, 0, 0, NULL, NULL);
-    char *output = va("%.*s", (outlen+1) * sizeof(char), "");
+    char *output = va("%*.s", (int)((outlen+1) * sizeof(char)), "");
     if( output ) {
         WideCharToMultiByte(CP_UTF8, 0, input, inlen, output, outlen, NULL, NULL);
         output[outlen] = '\0';

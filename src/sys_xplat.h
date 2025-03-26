@@ -98,3 +98,7 @@ typedef int RECT;
 #define ifndef_osx(t,...)  t
 #define ifdef_osx(t,...) __VA_ARGS__
 #endif
+
+#ifdef _MSC_VER
+#define __thread __declspec(thread)
+#endif

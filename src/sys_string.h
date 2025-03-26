@@ -4,15 +4,26 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+char* tempvl(const char *fmt, va_list vl) {
+    va_list copy;
+    va_copy(copy, vl);
+    int needed = stbsp_vsnprintf( 0, 0, fmt, copy ) + 1; assert(needed >= 1);
+    va_end(copy);
+
+    static __thread int STACK_ALLOC = 256*1024;
+    static __thread char *buf = 0; if(!buf) buf = REALLOC(0, STACK_ALLOC);
+    static __thread int cur = 0;
+
+    char* ptr = buf + (cur *= (cur+needed) < (STACK_ALLOC - 1), (cur += needed) - needed); assert(ptr);
+    int rc = (*ptr = 0, stbsp_vsnprintf( ptr, needed, fmt, vl )); assert(rc >= 0);
+    return (char *)ptr;
+}
 char* va(const char *fmt, ...) {
-    static char buf[144][1024+512];
-    static int l = 0; l = (l+1) % 144;
     va_list vl;
-    va_start(vl,fmt);
-    int rc = vsnprintf(buf[l], 1024+512-1, fmt, vl);
+    va_start(vl, fmt);
+    char *s = tempvl(fmt, vl);
     va_end(vl);
-    buf[l][rc<0?0:rc] = 0;
-    return buf[l];
+    return s;
 }
 #include <string.h>
 char *replace( char *copy, const char *target, const char *replacement ) {

@@ -20,10 +20,15 @@ if [ "$(uname)" != "Darwin" ]; then
 # compile -------------------------------------------------------------------- do not use -O3 below. zxdb cache will contain 0-byte files otherwise.
 gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
 upx -9 Spectral.linux
+
+# embed zxdb -----------------------------------------------------------------
 #src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
 #src/res/embed.linux Spectral.linux src/res/zxdb/Spectral.db.gz
 #src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
-cat Spectral.linux src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.linux
+#cat Spectral.linux src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.linux
+dd if=src/res/embed >> Spectral.linux
+dd if=src/res/zxdb/Spectral.db.gz >> Spectral.linux
+dd if=src/res/embed >> Spectral.linux
 
 fi
 
@@ -32,10 +37,15 @@ if [ "$(uname)" = "Darwin" ]; then
 # compile --------------------------------------------------------------------
 export SDKROOT=$(xcrun --show-sdk-path)
 gcc -ObjC src/app.c -I src -o ./Spectral.osx -O3 -DNDEBUG=3 -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -Wno-dangling-else -framework cocoa -framework iokit -framework CoreFoundation -framework CoreAudio -framework AudioToolbox -framework OpenGL -lm $* || exit
+
+# embed zxdb
 #src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
 #src/res/embed.osx Spectral.osx src/res/zxdb/Spectral.db.gz
 #src/res/embed.osx Spectral.osx @SpectralEmBeDdEd
-cat Spectral.osx src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.osx
+#cat Spectral.osx src/res/embed src/res/zxdb/Spectral.db.gz src/res/embed > Spectral.osx
+dd if=src/res/embed >> Spectral.osx
+dd if=src/res/zxdb/Spectral.db.gz >> Spectral.osx
+dd if=src/res/embed >> Spectral.osx
 
 # embed icon and make .app
 test -d Spectral.app && rm -rf Spectral.app
@@ -214,7 +224,7 @@ rem )
 
 where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
 where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!"
-where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-product-version "1.041 Spectral"
+where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-product-version "1.05 Spectral"
 where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico
 rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-version-string "version" "value"
 rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-resource-string "version" "value"

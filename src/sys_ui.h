@@ -779,9 +779,9 @@ int ui_print_index(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t ui
 
 extern int ui_alpha;
 int ui_print(Tigr *ui, int ui_x, int ui_y, rgba *colors, const char *utf8) {
+    int copyx = ui_x, copyy = ui_y;
+    int yqueue = 0, xmax = 0, ui_cr = ui_x;
     uint64_t ui_invert = 0;
-    unsigned copyx = ui_x, copyy = ui_y;
-    unsigned yqueue = 0, xmax = 0, ui_cr = ui_x;
     while( *utf8 ) {
         if( *utf8 == '~' ) { ui_invert ^= ~0uLL, ++utf8; continue; } // control code: invert bitmask
         if( (byte)*utf8 <= 0x7 ) { if(colors) colors[1] = ((TPixel){(!!(*utf8 & 2))*255,(!!(*utf8 & 4))*255,(!!(*utf8 & 1))*255,(byte)ui_alpha}).rgba; ++utf8; continue; } // control code: color
@@ -862,7 +862,7 @@ void ui_frame_begin() {
     static int mb_prev = 0;
     int mb = ui_rmb << 1 | ui_lmb;
     ui_press = (mb & 3); // L:1, R:2
-    ui_click = (mb & 1) > (mb_prev & 1) || (mb & 2) > (mb_prev & 2); // L:1(down), R:2(down) @fixme:R:2(up)
+    ui_click = (mb & 1) < (mb_prev & 1) || (mb & 2) < (mb_prev & 2); // L:1(down), R:2(down) @fixme:R:2(up)
     mb_prev = mb;
 
     ui_alpha = 255;
@@ -1174,6 +1174,9 @@ int ui_dialog_separator() {
 int ui_dialog_cancel() {
     return ui_dialog_option(1, "Cancel\n", NULL, 0, NULL);
 }
+int ui_dialog_ok() {
+    return ui_dialog_option(1, "OK\n", NULL, 0, NULL);
+}
 
 int ui_dialog_new(const char *title) {
     for( int i = 0; i < num_options; ++i) {
@@ -1230,16 +1233,16 @@ int ui_dialog_render(Tigr *dialog) {
         // calc longest line
         int maxw = 0;
         for( int i = 0; i < num_options; ++i ) {
-            int _0 = 0;
+            int _0 = 0, _c = -1;
 
-            for( int j = i ; !options[j].lf ; ) {
-                do _0 += options[j++].w; while( !options[j-1].lf && (j-1) < num_options );
-                _0 += (j-i-1) * theFontW; // word spaces
+            for( int j = i ; j < num_options && !options[j].lf ; ) {
+                _0 += options[j++].w;
+                _c ++;
             }
 
-            if( !_0 ) _0 += options[i].w + theFontW;
+            if( !_0 ) _0 = options[i].w, _c = 1; // word spaces
 
-            maxw = max(maxw, _0);
+            maxw = max(maxw, _0 + theFontW * _c);
         }
 
         // draw dialog entries at center of screen
@@ -1261,7 +1264,7 @@ int ui_dialog_render(Tigr *dialog) {
             if( options[i].center ) {
             for( int j = i ; x0 == _0 ; x0 = (_320-x0) / 2 ) {
                 do x0 += options[j++].w; while( !options[j-1].lf && (j-1) < num_options );
-                x0 += (j-i-1) * theFontW; // word spaces
+                x0 += (i!=j) * theFontW; // word spaces
             }
             }
 

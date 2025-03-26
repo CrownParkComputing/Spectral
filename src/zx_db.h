@@ -15,7 +15,7 @@ bool  zxdb_loaded();
 int   zxdb_count();
 zxdb   zxdb_search(const char *entry); // either "#id", "*text*search*", or "/file.ext"
 zxdb    zxdb_print(const zxdb);
-char*   zxdb_url(const zxdb, const char *hint); // @todo:, unsigned release_seq);
+char*   zxdb_url(const zxdb, const char *hint);
 char*   zxdb_download(const zxdb, const char *url, int *len); // must free() after use
 zxdb    zxdb_free(zxdb);
 
@@ -432,6 +432,18 @@ zxdb zxdb_search(const char *id) { // game.tap or #13372
 
 char* zxdb_url(const zxdb z, const char *hint) {
 
+    if( isdigit(hint[0]) ) {
+        int chosen = atoi(hint);
+        for( int i = 0; z.downloads[i]; ++i ) {
+            if( i == chosen ) {
+                char *url = va("%.*s", strchr(z.downloads[i],'|') - z.downloads[i], z.downloads[i]);
+                // if( /*strstri(url, ".szx") ||*/ strstri(url, ".slt") ) continue;
+                return url;
+            }
+        }
+        return NULL;
+    }
+
     if( strstri(hint, "play") ) {
         char *media = 0;
         if(!media) media = zxdb_url(z, "bugfix");
@@ -454,11 +466,11 @@ char* zxdb_url(const zxdb z, const char *hint) {
     else if( strstri(hint, "snap")) hint = "|10|S", check_media = 1;
     else if( strstri(hint, "disk")) hint = "|11|D", check_media = 1;
     else if( strstri(hint, "rom")) hint = "|17|C", check_media = 1;
-    else if( strstri(hint, "ay")) hint = "|23|R";
     else if( strstri(hint, "mp3")) hint = "|27|B";
     else if( strstri(hint, "scanned")) hint = "|29|S";
     else if( strstri(hint, "instr")) hint = "|28|I";
     else if( strstri(hint, "overlay")) hint = "|30|K"; // @todo: addme
+    else if( strstri(hint, "ay")) hint = "|23|R"; // after overlay
     else if( strstri(hint, "map")) hint = "|31|G";
     else if( strstri(hint, "comic")) hint = "|59|C";
     else if( strstri(hint, "rzx")) hint = "|63|R";
@@ -466,9 +478,8 @@ char* zxdb_url(const zxdb z, const char *hint) {
 
     for( int i = 0; z.downloads[i]; ++i ) {
         if( strstri(z.downloads[i], hint) ) {
-            char *url = va("%.*s", strchr(z.downloads[i],'|') - z.downloads[i], z.downloads[i]);
-            if( /*strstri(url, ".szx") ||*/ strstri(url, ".slt") ) continue;
-            return url;
+            char slot[6]; snprintf(slot, 6-1, "%d", i);
+            return zxdb_url(z, slot);
         }
     }
 

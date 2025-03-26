@@ -158,7 +158,12 @@ int ZX_PAD_[16] = {0}; // temporary values while remapping. array not serialized
 
 int ZX_PRINTUI = 0; // whether print UI yes/no in both screenshots and/or video records. not serialized
 
-#define INI_OPTIONS(X) \
+const char *ZX_FOLDER = 0;
+
+#define INI_OPTIONS_STR(X) \
+    X(ZX_FOLDER)
+
+#define INI_OPTIONS_NUM(X) \
     X(ZX) \
     X(ZX_RF) \
     X(ZX_CRT) \
@@ -2255,6 +2260,7 @@ void eject() {
     fdc_reset();
     tape_reset();
     media_reset();
+    RZX_reset();
     ZXDB = zxdb_free(ZXDB);
 }
 
@@ -2354,7 +2360,7 @@ void boot(int model, unsigned FLAGS) {
     ay38910_init(&ay[1], &ay_desc);
 
     // ayumi
-    const int is_ym = 1; // should be 0, but 1 sounds more Speccy to me somehow (?)
+    const int is_ym = 0; // should be 0, but 1 sounds more Speccy to me somehow (?)
     const int eqp_stereo_on = 0;
     const double pan_modes[7][3] = { // pan modes, 7 stereo types
       {0.50, 0.50, 0.50}, // MONO, original
