@@ -77,7 +77,7 @@ if "%1"=="" (
 )
 
 if "%1"=="-h" (
-    echo make [bug^|dev^|opt^|rel] [compiler-flags]
+    echo make [asan^|dev^|opt^|rel] [compiler-flags]
     exit /b
 )
 
@@ -124,6 +124,8 @@ if "%1"=="tidy" (
     del *.pdb
     del *.ilk
     del *.zip
+    del *.exp
+    del *.lib
     del src\res\zxdb\*.db
     del src\res\zxdb\*.exe
     del src\res\zxdb\*.sqlite
@@ -131,13 +133,15 @@ if "%1"=="tidy" (
 )
 
 if "%1"=="dev" (
+    taskkill /f /im remedybg.exe > nul 2> nul
+
     call make nil /Zi %ALL_FROM_2ND% || goto error
     copy /b/y Spectral.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
 
     exit /b
 )
 
-if "%1"=="bug" (
+if "%1"=="asan" (
     call make dev /fsanitize=address %ALL_FROM_2ND% || goto error
 
     tasklist /fi "ImageName eq remedybg.exe" 2>NUL | find /I "exe">NUL || (where /q remedybg.exe && start remedybg -q -g Spectral.exe)
@@ -222,17 +226,15 @@ rem copy /y Debug\rcedit.exe ..\rcedit-x64.exe
 rem popd
 rem )
 
+timeout /t 2 && rem wait 2s for windows defender to scan our executable
 where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
-where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!"
-where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-product-version "1.05 Spectral"
-where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico
-rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-version-string "version" "value"
-rem where /q rcedit-x64 && rcedit-x64 "Spectral.exe" --set-resource-string "version" "value"
-
-rem where /Q ResourceHacker.exe && ResourceHacker.exe -open Spectral.exe -save Spectral.exe -action addskip -res src\res\img\noto_1f47b.ico -mask ICONGROUP,MAINICON,0
+where /q rcedit-x64 && ^
+rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!" && ^
+rcedit-x64 "Spectral.exe" --set-product-version "1.06-WIP Spectral" && ^
+rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico || goto error
 
 if "%__DOTNET_PREFERRED_BITNESS%"=="32" (
-    move /y Spectral.exe SpectralX86.exe
+    move /y Spectral.exe Spectral32.exe
 )
 
 exit /b 0

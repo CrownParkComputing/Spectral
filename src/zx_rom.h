@@ -1,7 +1,7 @@
 #include "res/roms/48"
 #include "res/roms/128"
 #include "res/roms/plus2"
-#include "res/roms/plus3"
+#include "res/roms/plus341"
 #include "res/roms/pentagon128"
 #include "res/roms/trdos503"
 //#include "res/roms/trdos505"
@@ -9,6 +9,10 @@
 //#include "res/roms/trdos611e"
 //#include "res/roms/trdos604"
 //#include "res/roms/gluk663pen"
+
+#include "res/roms/mf1"
+#include "res/roms/mf128"
+#include "res/roms/mf3"
 
 #include "res/roms/plus2c"      // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/plus2b"    // https://shorturl.at/dY4wP
@@ -71,10 +75,10 @@ void rom_restore() {
 
     // [ref] https://speccy.xyz/rom/asm/0556.html
 
-    /**/ if( ZX >= 210) memcpy(rom, romplus3,  0x4000*4);
-    else if( ZX >= 200) memcpy(rom, romplus2,  0x4000*2);
-    else if( ZX >= 128) memcpy(rom, rom128,    0x4000*2);
-    else if( ZX >=  16) memcpy(rom, rom48,     0x4000*1);
+    /**/ if( ZX >= 210) memcpy(rom, romplus341, 0x4000*4);
+    else if( ZX >= 200) memcpy(rom, romplus2,   0x4000*2);
+    else if( ZX >= 128) memcpy(rom, rom128,     0x4000*2);
+    else if( ZX >=  16) memcpy(rom, rom48,      0x4000*1);
 
     // install pentagon rom on 128 model :o)
     if( ZX == 128 )

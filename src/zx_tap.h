@@ -6,14 +6,14 @@ enum { LEVEL_FLIP, LEVEL_KEEP, LEVEL_LOW, LEVEL_HIGH }; // polarity
 
 #pragma pack(push, 1)    // mem fit
 struct tape_block {
-    unsigned count : 13; // 8192 max seems ok. pilots use 2168, and turbo loaders tend to shorten this value. we use it for pauses too, which are 3500 Ts long. abadia(5exitos) uses 4107.
-    unsigned units : 17; // most blocks specifies pulses. pa(u)se, st(o)p blocks use millisecond units though
-    unsigned level : 2;  // polarity level: flip(0), keep(1), low(2), high(3)
+    unsigned count : 14; // SpecialProgram11-ITA-bootleg.tzx uses 8469. pauses are 3500, pilots use 2168, and turbo loaders tend to shorten this value
+    unsigned units : 18; // most blocks specifies pulses. pa(u)se, st(o)p blocks use millisecond units though
+    char level;          // polarity level: flip(0), keep(1), low(2), high(3). could be packed in 2 bits
     char debug;          // could be packed into 3 bits: l,n,t,u,o
 };
 #pragma pack(pop)
 
-typedef int static_assert_tape_block[ sizeof(struct tape_block) == 5];
+typedef int static_assert_tape_block[sizeof(struct tape_block) == 6 ? 1:-1];
 
 #define VOC_DEFINES \
 int             mic,mic_on; /* these two belong to zx.h */ \

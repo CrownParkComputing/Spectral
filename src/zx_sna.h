@@ -6,7 +6,7 @@ static void *p = 0;
 //#define fread16() (v = fgetc(fp), v |= fgetc(fp) << 8, v)
 //#define freadnum(n) (fread(p = realloc(p, (n)), 1, (n), fp), p)
 
-int rom_load(const byte *src, int len) { // interface2 cartridge
+int rom_load(const byte *src, int len) { // interface2 cartridge / rom (16k/32k/64k)
     if(!( src && (len == 16384 || len == 32768 || len == 65536) )) 
         return 0;
 
@@ -21,6 +21,36 @@ int rom_load(const byte *src, int len) { // interface2 cartridge
     pins = z80_prefetch(&cpu, cpu.pc);
     return 1;
 }
+
+#if 0
+.if1 should go into byte shadow_rom[8192];
+
+memcpy(rom+16384, rom, 16384);
+memcpy(rom+16384, if1, if1sz);
+
+READ:
+    return rom[addr + 16384 * (mdr_active && mdr_paged)]; // shadow rom in 2nd 16k page
+
+int if1_load(const byte *src, int len) { // interface1 cartridge (8k max)
+    if(!(src && len > 2 && len <= 8192) )
+        return 0;
+    if( memcmp(src, "\x3\0", 2) ) {
+        return 0;
+    }
+
+    boot(16, 0); // @fixme: needed?
+    /*
+    page128 &= ~32;
+    port_0x7ffd(32|16);
+    */
+    ZXBorderColor = 0;
+    PC(cpu) = 0;
+    memset(rom, 0, 16384);
+    memcpy(rom, src, len);
+    pins = z80_prefetch(&cpu, cpu.pc);
+    return 1;
+}
+#endif
 
 int scr_load(const byte *src, int len) { // screenshot
     // @todo: .ifl (multicolor8x2 9216 = 6144+768*4)

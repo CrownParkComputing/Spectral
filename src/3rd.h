@@ -14,6 +14,7 @@
 #include "3rd_tigrdragndrop.h"
 #include "3rd_tigrtitle.h"
 #include "3rd_tigroskeys.h"
+#include "3rd_tigrrendermap.h"
 #undef border
 #undef run
 
@@ -78,3 +79,6 @@
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "3rd_stb_sprintf.h"
+
+#define DR_MP3_IMPLEMENTATION
+#include "3rd_drmp3.h"

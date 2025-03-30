@@ -42,6 +42,10 @@ const char *strstri(const char *a, const char *b) {
     for(char *p = (char*)(B = va("%s",b)); *p; ++p) *p = toupper(*p);
     return M = strstr(A, B), M ? a + (M - A) : NULL;
 }
+const char *strbegi(const char *a, const char *b) {
+    const char *A = strstri(a, b);
+    return A == a ? a : NULL;
+}
 const char *strendi(const char *src, const char *sub) { // returns true if both strings match at end. case insensitive
     int srclen = strlen(src);
     int sublen = strlen(sub);

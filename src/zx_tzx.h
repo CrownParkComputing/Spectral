@@ -6,6 +6,8 @@
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)
 // tzx(noise) leaderboard par 3, tai-pan, wizball
 
+enum { HYPER_LARGE_PAUSE = 50 * 1000 }; // 50s pause
+
 int tzx_load(const byte *fp, int len) {
     // verify tzx
     if( memcmp(fp, "ZXTape!\x1a", 8) ) return 0;
@@ -42,8 +44,16 @@ int tzx_load(const byte *fp, int len) {
                 pause  = (*src++); pause  |= (*src++)*0x100;
                 bytes  = (*src++); bytes  |= (*src++)*0x100;
                 pulses = src[0] < 128 ? DELAY_HEADER : DELAY_DATA; // < 4 ?
+
+                // this section improves our tape preview/browser by inserting large silences
+                // before all .bas sections within a large tape. the only exception would
+                // be finding two or more consecutive .bas loaders at beginning of tape (<5% progress)
+                int is_basic = src[0] == 0 && src[1] == 0, at_begin = ((src-fp)/(double)len) < 0.05;
+                if( is_basic && !at_begin ) tape_render_pause(HYPER_LARGE_PAUSE);
+
                 tape_render_full(src, bytes, 8, pulses, PILOT, SYNC1, SYNC2, ZERO, ONE, pause);
-                debug = va("%ums %.*s", pause, src[0] < 128 ? 10 : 0, bytes >= 12 ? src+1+!src[1] : (byte*)"");
+                byte *name = src+2, *eos = name+10; while( bytes >= 12 && name < eos && name[0] < 32 ) ++name;
+                debug = va("%ums [%02x][%02x] %.*s", pause, src[0],src[1], (src[0] < 128 && bytes >= 12) * (int)(eos-name), name);
                 src += bytes;
 
             break; case 0x11: // OK(1)
@@ -253,7 +263,7 @@ int tzx_load(const byte *fp, int len) {
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += count;
 
-#if 1 // HAS_PROMPT
+#if 0 // HAS_PROMPT
                 src -= count;
 
                 byte selections = *src++;
@@ -314,7 +324,7 @@ int tzx_load(const byte *fp, int len) {
                 blockname = "48KStopTape";
                 count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
-                if(ZX < 128) tape_render_stop(); // @fixme: || page128 & 16
+                if(ZX < 128) tape_render_stop(), tape_render_pause(HYPER_LARGE_PAUSE); // @fixme: || page128 & 16
                 else tape_render_pause(1000); // experimental
 
             break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3
@@ -329,6 +339,9 @@ int tzx_load(const byte *fp, int len) {
                 count  = (*src++);
                 debug = va("%.*s", count, src);
                 src += count;
+
+                // seadragon.tzx
+                if( strbegi(debug, "SIDE") || !strcmpi(debug,"B") ) tape_render_pause(HYPER_LARGE_PAUSE);
 
             break; case 0x31: // OK(0)
                 blockname = "Message";
@@ -350,8 +363,8 @@ int tzx_load(const byte *fp, int len) {
             break; case 0x5a: // OK
                 blockname = "+glue";
                 src += 9;
-                // if(ZX < 128) tape_render_stop(); // note: custom modification to handle consecutive glued tapes
-                tape_render_pause(1000);
+
+                tape_render_pause(HYPER_LARGE_PAUSE);
                 tape_render_stop(); //< probably a good idea
 
             break; case 0x16: // DEPRECATED
