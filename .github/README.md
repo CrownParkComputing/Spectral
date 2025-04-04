@@ -13,8 +13,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 </p>
 
 # Roadmap and features
-- [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
-- [ ] Cycle accurate (border, multicolor, etc).
+- [ ] Extra accurate Z80 backend. <!-- @todo: contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
 - [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
 - [ ] Netplay.
 - [ ] Optimized.
@@ -23,8 +22,8 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Z80. Z80 Disassembler. 3.5/7/14 MHz.
 - [x] 16, 48, 128, +2, +2A, +3, Pentagon128 models.
 - [x] Issue 2/3 keyboards.
-- [x] ULA/ULA+ graphics. 25/30/50/60Hz fps lock.
-- [x] Beeper/AY chips. Turbosound (Turbo-AY).
+- [x] Multicolor ULA/ULA+ graphics. 25/30/50/60Hz fps lock.
+- [x] Beeper/AY chips. Turbosound/Turbo-AY (Pentagon only).
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks. Gamepad support (Windows, Linux). <!-- @todo: invert joystick/mouse axes/buttons -->
 - [x] RF/CRT experience (not physically accurate though).
@@ -69,11 +68,14 @@ Hold any F1..F12 key for 2 seconds to redefine it.
 # Credits
 Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov and wermipls, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). Marat Fayzullin for their WD1793/FDI controllers (Proprietary). Sean Middleditch for their gamepad code (MIT licensed). Sergey Bulba for their ay2sna tool (Public Domain). Potapov Vsevolod Viktorovich for their rusfaq website. Andrew Owen and Geoff Wearmouth for their custom ROMs. Simon Owen for their DSK technical websites. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. Damian Vila for their BESCII truetype font (CC-1.0). lalaoopybee, for their lovely tube shader. Günter Woigk, Juan Carlos González Amestoy and David Colmenero for their floppy sound recordings. Sean Middleditch for their gamepad library (MIT). joric for their irc client (PD). David Reid and Lieff for their mp3 decoding library (PD). The ZXDB devs. The ZX Spectrum Discord folks. All the ZX community!
 
-
-
-
 # Unlicense
 This software is released into the [public domain](https://unlicense.org/). Also dual-licensed as [0-BSD](https://opensource.org/licenses/0BSD) or [MIT (No Attribution)](https://github.com/aws/mit-0) for those countries where public domain is a concern (sigh). Any contribution to this repository is implicitly subjected to the same release conditions aforementioned.
+
+# Privacy policy
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+# Code signing policy
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
 # Links
 - [Introduction to the ZX Spectrum](https://en.wikipedia.org/wiki/ZX_Spectrum), entry on Wikipedia.

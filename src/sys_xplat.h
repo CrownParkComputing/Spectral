@@ -99,6 +99,17 @@ typedef int RECT;
 #define ifdef_osx(t,...) __VA_ARGS__
 #endif
 
+#ifdef __cplusplus
+#define ifdef_cpp(t,...)  t
+#define ifndef_cpp(t,...) __VA_ARGS__
+#else
+#define ifndef_cpp(t,...)  t
+#define ifdef_cpp(t,...) __VA_ARGS__
+#endif
+
+#define ifdef_c ifndef_cpp
+#define ifndef_c ifdef_cpp
+
 #ifdef _MSC_VER
 #define __thread __declspec(thread)
 #endif

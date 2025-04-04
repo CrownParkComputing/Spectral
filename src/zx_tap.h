@@ -1,8 +1,8 @@
 #define ALT_TIMINGS 0 // 1 for the wip timings
 
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000, COUNT_PER_MS = 3547 }; // 3500 };
-
 enum { LEVEL_FLIP, LEVEL_KEEP, LEVEL_LOW, LEVEL_HIGH }; // polarity
+enum { LEAD_SILENCE = 100 }; // MS
 
 #pragma pack(push, 1)    // mem fit
 struct tape_block {
@@ -29,27 +29,6 @@ char tape_preview[_320+1];
 struct tape_block* voc;
 
 // --- voc rendering
-
-void tape_reset(void) {
-    memset(tape_preview, 0, sizeof(tape_preview));
-
-    voc = realloc(voc, sizeof(struct tape_block) * 0x1800000);
-    voc_len = 0;
-    voc_pos = voc_count = voc_units = 0;
-
-    tape_has_turbo = 0;
-    tape_num_stops = 0;
-    tape_issue2 = 0;
-    tape_type = 0xFF;
-
-    mic = 0;
-    mic_on = 0;
-
-    tape_level = LEVEL_FLIP;
-    tape_tstate = 0;
-
-    memset(&q, 0, sizeof(struct tape_block));
-}
 
 #define tape_push(d,l,c,u) do { assert((u)>=0); \
     voc[voc_len++] = ((struct tape_block){c,u,l,2[d] }); } while(0)
@@ -116,6 +95,29 @@ void tape_render_standard(byte *data, unsigned bytes, float pilot_len) {
     tape_render_full(data, bytes, 8, pilot_len, PILOT, SYNC1, SYNC2, ZERO, ONE, END_MS);
 }
 
+
+void tape_reset(void) {
+    memset(tape_preview, 0, sizeof(tape_preview));
+
+    voc = realloc(voc, sizeof(struct tape_block) * 0x1800000);
+    voc_len = 0;
+    voc_pos = voc_count = voc_units = 0;
+
+    tape_has_turbo = 0;
+    tape_num_stops = 0;
+    tape_issue2 = 0;
+    tape_type = 0xFF;
+
+    mic = 0;
+    mic_on = 0;
+
+    tape_level = LEVEL_FLIP;
+    tape_tstate = 0;
+
+    memset(&q, 0, sizeof(struct tape_block));
+
+    tape_render_pause(LEAD_SILENCE); // give tape some leading silence (stabilizes tape levels during rewinds)
+}
 
 void tape_finish() {
     // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
@@ -276,7 +278,7 @@ int tap_load(const void *fp, int siz) {
 // --- tape utils
 
 #define tape_level() (!!mic)
-#define tape_inserted() (!!voc_len)
+#define tape_inserted() (voc_len > LEAD_SILENCE) // (!!voc_len)
 #define tape_seekf(at) ( voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos )
 #define tape_peek() ( voc_pos < voc_len ? voc[voc_pos].debug : ' ' )
 #define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )
@@ -285,11 +287,9 @@ int tap_load(const void *fp, int siz) {
 #define tape_stop() tape_play(0)
 
 void tape_play(int on) {
-    if( tape_inserted() ) {
-        /**/ if( !on ) mic_on = 0;
-        else if( voc_pos == 0 ) mic_on = 1;
-        else if( voc_pos < (voc_len-1) && strchr("uo",q.debug) ) {
-            mic_on = 1;
+    mic_on = !!on;
+    if( on && tape_inserted() ) {
+        if( voc_pos < (voc_len-1) && strchr("uo",q.debug) ) {
             extern uint64_t tape_ticks;
             mic_read(tape_ticks);
             q = mic_read_tapeblock(++voc_pos);

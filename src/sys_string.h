@@ -11,7 +11,7 @@ char* tempvl(const char *fmt, va_list vl) {
     va_end(copy);
 
     static __thread int STACK_ALLOC = 256*1024;
-    static __thread char *buf = 0; if(!buf) buf = REALLOC(0, STACK_ALLOC);
+    static __thread char *buf = 0; if(!buf) buf = (char*)REALLOC(0, STACK_ALLOC);
     static __thread int cur = 0;
 
     char* ptr = buf + (cur *= (cur+needed) < (STACK_ALLOC - 1), (cur += needed) - needed); assert(ptr);
@@ -52,7 +52,10 @@ const char *strendi(const char *src, const char *sub) { // returns true if both 
     if( sublen > srclen ) return 0;
     return !strcmpi(src + srclen - sublen, sub) ? src + srclen - sublen : NULL;
 }
-int qsort_strcmp(const void * a, const void * b ) {
+int qsort_strcmp( const void *a, const void *b ) {
+    return strcmp( *(const char**)a, *(const char**)b ); // _stricmp
+}
+int qsort_compare(const void * a, const void * b ) {
     // smart strcmp which does:
     // Narc - 128k.tzx < Narc - 128k - Levels.tzx, and also:
     // Academy - Side 1.tzx < Academy - Side 2.tzx < Academy - Side 3.tzx < Academy - Side 4.tzx, and also:
@@ -69,7 +72,7 @@ int qsort_strcmp(const void * a, const void * b ) {
 #define memmem memmem2 // archlinux
 const void *memmem(const void *block, size_t blocklen, const void * const bits, const size_t bitslen) {
     if((uintptr_t)block * blocklen * (uintptr_t)bits * bitslen)
-    for (const char *h = block; blocklen >= bitslen; ++h, --blocklen) {
+    for (const char *h = (const char*)block; blocklen >= bitslen; ++h, --blocklen) {
         if (!memcmp(h, bits, bitslen)) {
             return h;
         }
@@ -168,8 +171,10 @@ const char* codepoint_to_utf8(unsigned c) { //< @r-lyeh
     return s;
 }
 
+#ifndef __cplusplus
 char *romanize(const char *s) {
     const int roman[] = {
+        [0x00A1/*¡*/]='!',[0x00BF/*¿*/]='?',
         [0x00e0/*à*/]='a',[0x00c0/*À*/]='A',[0x00e1/*á*/]='a',[0x00c1/*Á*/]='A',[0x00e2/*â*/]='a',[0x00c2/*Â*/]='A',[0x00e3/*ã*/]='a',[0x00c3/*Ã*/]='A',[0x00e5/*å*/]='a',[0x00c5/*Å*/]='A',[0x0101/*ā*/]='a',[0x0100/*Ā*/]='A',[0x0103/*ă*/]='a',[0x0102/*Ă*/]='A',[0x0105/*ą*/]='a',[0x0104/*Ą*/]='A',
         [0x1e03/*ḃ*/]='b',[0x1e02/*Ḃ*/]='B',
         [0x00e7/*ç*/]='c',[0x00c7/*Ç*/]='C',[0x0107/*ć*/]='c',[0x0106/*Ć*/]='C',[0x0109/*ĉ*/]='c',[0x0108/*Ĉ*/]='C',[0x010b/*ċ*/]='c',[0x010a/*Ċ*/]='C',[0x010d/*č*/]='c',[0x010c/*Č*/]='C',
@@ -215,4 +220,4 @@ char *romanize(const char *s) {
 
     return *p++ = 0, out;
 }
-
+#endif

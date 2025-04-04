@@ -1,5 +1,5 @@
 
-name: Create Pre-Release
+name: Create Release
 
 on:
   workflow_dispatch:
@@ -50,19 +50,61 @@ jobs:
       - uses: actions/checkout@v3
       - name: Build Windows
         run: ./MAKE.bat
-      - name: Upload Windows Artifact
+
+      # required for the artifact to be available on the GitHub server
+      - name: upload-unsigned-artifact
+        id: upload-unsigned-artifact
+        uses: actions/upload-artifact@v4
+        with: 
+          path: ./SpectralNaked.exe
+          #retention-days: 1
+
+      # Submit signing request to SignPath
+      - name: Sign with SignPath
+        id: optional_step_id
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: 'spectral'
+          signing-policy-slug: 'release-signing' # 'test-signing'
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          #artifact-configuration-slug: ${{ matrix.vscode_arch }}
+          wait-for-completion: true
+          # 3h to manually approve the request
+          wait-for-completion-timeout-in-seconds: 10800
+          output-artifact-directory: signed/
+
+      - name: Concat ZXDB
+        run: |
+          ./MAKE.bat cmd copy /b/y SpectralNaked.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed unsigned-spectral.exe
+          ./MAKE.bat cmd copy /b/y signed\*.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed signed-spectral.exe
+
+      # Upload the signed artifact
+      - name: Upload Signed Windows Artifact
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./Spectral.exe
+          asset_path: signed-spectral.exe
+          asset_name: Spectral-${{ github.event.inputs.version }}-Signed.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      # Upload the unsigned artifact
+      - name: Upload Unsigned Windows Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: unsigned-spectral.exe
           asset_name: Spectral-${{ github.event.inputs.version }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
   build-ubuntu:
     needs: create-release
-    runs-on: ubuntu-20.04 ## ubuntu-latest
+    runs-on: ubuntu-latest ## ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Install Dependencies
@@ -71,6 +113,12 @@ jobs:
           sudo apt-get install -y build-essential libgtk-3-dev
       - name: Build Ubuntu
         run: sh MAKE.bat
+      - name: Patch glibc for backwards compatibility
+        uses: lmangani/polyfill-glibc-action@main
+        id: polyfill
+        with:
+          glibc: "2.17"
+          target: "./Spectral.linux"
       - name: Upload Ubuntu Artifact
         uses: actions/upload-release-asset@v1
         env:

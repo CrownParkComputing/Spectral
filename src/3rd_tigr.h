@@ -1,4 +1,3 @@
-#include <stdio.h> //< @r-lyeh for SaveFile
 double glColor[4]; //< @r-lyeh
 
 // TIGR - TIny GRaphics Library - v3.1
@@ -335,7 +334,7 @@ Tigr *tigrLoadImageMem(const void *data, int length);
 // Saves a PNG to a file. (fileName is UTF-8)
 // On error, returns zero and sets errno.
 int tigrSaveImage(const char *fileName, Tigr *bmp);
-int tigrSaveImageFile(FILE *fp, Tigr *bmp); //< @r-lyeh
+int tigrSaveImageFile(void *FILE_fp, Tigr *bmp); //< @r-lyeh
 
 
 // Helpers ----------------------------------------------------------------
@@ -1489,9 +1488,11 @@ static long savePngData(Save* s, Tigr* bmp, long dataPos) {
     return dataSize;
 }
 
-int tigrSaveImageFile(FILE *out, Tigr* bmp) { //< @r-lyeh
+int tigrSaveImageFile(void *ptr, Tigr* bmp) { //< @r-lyeh
     Save s;
     long dataPos, dataSize, err;
+
+    FILE *out = (FILE *)ptr;
 
     if( !out ) return 0;
     err = ferror(out);

@@ -340,8 +340,9 @@ int tzx_load(const byte *fp, int len) {
                 debug = va("%.*s", count, src);
                 src += count;
 
-                // seadragon.tzx
-                if( strbegi(debug, "SIDE") || !strcmpi(debug,"B") ) tape_render_pause(HYPER_LARGE_PAUSE);
+                // seadragon.tzx, superwonderboy.tzx
+                if( strbegi(debug, "SIDE") || strstri(debug, "SIDE ") || !strcmp(debug,"B") || !strcmp(debug,"2") )
+                    tape_render_pause(HYPER_LARGE_PAUSE);
 
             break; case 0x31: // OK(0)
                 blockname = "Message";

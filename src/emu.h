@@ -29,6 +29,7 @@ int play(int sample, unsigned count); // this is from sys headers actually
 
 #if NEWCORE
 #include "emu_z80.h"
+//#include "emu_z80_myopian.h"
 #define EI IFF1
 #else
 #include "emu_z80old.h"

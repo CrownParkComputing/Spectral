@@ -6,10 +6,15 @@
 #define WINDOW_WIDTH _320
 #define WINDOW_HEIGHT _240
 
+#if 0
 #define tigrMin(a,b) ((a) < (b) ? (a) : (b))
 #define tigrMax(a,b) ((a) > (b) ? (a) : (b))
 #define tigrClamp(v,a,b) ((v) < (a) ? (a) : (v) > (b) ? (b) : (v))
-
+#else
+double tigrMin(double a, double b) { return a < b ? a : b; }
+double tigrMax(double a, double b) { return a > b ? a : b; }
+double tigrClamp(double v, double m, double M) { return v<m ? m : v>M ? M : v; }
+#endif
 
 // Helper function to calculate cubic interpolation weight
 float cubicWeight(float x) {

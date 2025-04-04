@@ -80,21 +80,21 @@ const char *tab;
 
 static
 int zxdb_compare_by_name(const void *arg1, const void *arg2) { // @fixme: roman
-    char **a = (char**)*(VAL**)arg1; char *entry = *a;
-    char **b = (char**)*(VAL**)arg2; char *other = *b;
+    const char **a = (const char**)*(VAL**)arg1; const char *entry = *a;
+    const char **b = (const char**)*(VAL**)arg2; const char *other = *b;
 
-    char *year1  = strchr(entry,  '|')+1;
-    char *title1 = strchr(year1,  '|')+1;
-    char *alias1 = strchr(title1, '|')+1;
+    const char *year1  = strchr(entry,  '|')+1;
+    const char *title1 = strchr(year1,  '|')+1;
+    const char *alias1 = strchr(title1, '|')+1;
 
-    char *year2  = strchr(other,  '|')+1;
-    char *title2 = strchr(year2,  '|')+1;
-    char *alias2 = strchr(title2, '|')+1;
+    const char *year2  = strchr(other,  '|')+1;
+    const char *title2 = strchr(year2,  '|')+1;
+    const char *alias2 = strchr(title2, '|')+1;
 
     if( tab ) {
         if( *tab == '#' ) {
-            if( *alias1 != '|' && (isdigit(*alias1) || ispunct(*alias1)) ) title1 = alias1;
-            if( *alias2 != '|' && (isdigit(*alias2) || ispunct(*alias2)) ) title2 = alias2;
+            if( *alias1 != '|' && !isdigit(*title1) && !ispunct(*title1) ) title1 = alias1;
+            if( *alias2 != '|' && !isdigit(*title2) && !ispunct(*title2) ) title2 = alias2;
         } else {
             if( *title1 != *tab && *alias1 == *tab ) title1 = alias1;
             if( *title2 != *tab && *alias2 == *tab ) title2 = alias2;
@@ -119,9 +119,10 @@ char *zxdb_screen(const char *id, int *len) {
     return NULL;
 }
 
-bool zxdb_load(const char *id, int ZX_MODEL) {
-    if( id && id[0] && strcmp(id, "0") && strcmp(id, "#") ) {
+bool zxdb_load(const char *id_, int ZX_MODEL) {
+    if( id_ && id_[0] && strcmp(id_, "0") && strcmp(id_, "#") ) {
 
+        char *id = va("%s", id_);
         const char *hint = "play";
 
 #if 0
@@ -174,14 +175,19 @@ bool zxdb_load(const char *id, int ZX_MODEL) {
                 // this temp file is a hack for now. @fixme: move the zip/rar/fdi loaders into loadbin()
                 for( FILE *fp = fopen("spectral.$$2", "wb"); fp; fwrite(data, len, 1, fp), fclose(fp), fp = 0) {
                 }
-                loadfile("spectral.$$2", 1);
+                loadfile("spectral.$$2", 1, 0);
                 unlink("spectral.$$2");
         #endif
             }
 
+            // @fixme: verify that previous step went right
+
             ZXDB = ZXDB2;
 
-            return true; // @fixme: verify that previous step went right
+            extern char *last_load;
+            last_load = (free(last_load), strdup(id_));
+
+            return true;
         }
     }
     return false;
@@ -393,7 +399,6 @@ char *zxdb_screen_async(const char *id, int *len, int factor) {
 int active; // @todo: rename to browsing, browser_active, or library_active
 
 extern Tigr *app, *ui;
-extern char *last_load;
 
 char **games;
 int *dbgames;
@@ -471,7 +476,7 @@ void draw_compatibility_stats(window *layer) {
     for( int x = 0; x <= num3; ++x ) bar[x+num1+num2-320]=bar[x+num1+num2] = tigrRGB(255,64,64);
     static char compat[64];
     snprintf(compat, 64, "  OK:%04.1f%%     ENTER:128, +SHIFT:48, +CTRL:Try turbo", (total-numerr) * 100.f / (total+!total));
-    window_printxy(layer, compat, 0,(_240-12.0)/11);
+    ui_print(layer, 0,(_240-12.0)/11, ui_colors, compat);
     }
 }
 
@@ -481,10 +486,14 @@ int  *queries; int numqueries;
 VAL **remotes; int numremotes;
 void search_query_v1(const char *query) {
     wildcard[0] = 0;
-
     numqueries = 0;
-    queries = REALLOC((void*)queries, (query && query[0]) * sizeof(int) * 65536);
-    if( !queries ) return;
+    numremotes = 0;
+
+    if(!query) return;
+    if(!query[0]) return;
+
+    if(!queries) queries = REALLOC((void*)queries, sizeof(int) * 65536);
+    if(!queries) return;
 
     if( strchr(query, '*') )
     snprintf(wildcard, 256-1, "%s", query);
@@ -534,8 +543,6 @@ void search_query_v1(const char *query) {
 #endif
 }
 char *search_results_v1() {
-    if( !queries ) return NULL;
-
     extern int cmdkey;
     extern const char *cmdarg;
 
@@ -557,19 +564,19 @@ char *search_results_v1() {
     for( int j = 0; j < numremotes; ++j ) {
         int i = j;
 
-        char *zx_id = (char*)*remotes[i];
-        char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
-        char *title = strchr(years, '|')+1; int years_len = title-years-1;
-        char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
-        char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
-        char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
-        char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
-        char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
-        char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
+        const char *zx_id = (const char*)*remotes[i];
+        const char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
+        const char *title = strchr(years, '|')+1; int years_len = title-years-1;
+        const char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
+        const char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
+        const char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
+        const char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
+        const char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
+        const char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
 
         // should we look into alias or main title
-        char *main = va("%.*s", alias_len ? title_len : alias_len, alias_len ? title : alias);
-        char *alt  = va("%.*s", alias_len ? alias_len : title_len, alias_len ? alias : title);
+        char *main  = va("%.*s", title_len, title);
+        char *alt   = va("%.*s", alias_len, alias);
         int use_alt = !strmatchi(main, wildcard) && strmatchi(alt, wildcard);
         if(!use_alt) use_alt = i && atoi((char*)*remotes[i]) == atoi((char*)*remotes[i-1]);
         if( use_alt ) {
@@ -583,7 +590,7 @@ char *search_results_v1() {
 
         // replace brand if no brand is given. use 1st author if possible
         if( brand[0] == '|' ) {
-            char *next = strchr(zx_id, '\n');
+            const char *next = strchr(zx_id, '\n');
             if( next && next[1] == '@' ) { // x3 skips: '\n' + '@' + 'R'ole
                 brand = next+1+1+1, brand_len = strcspn(brand, "@\r\n");
             }
@@ -623,9 +630,10 @@ int game_filter() { // returns true if any key was pressed
     for(;;) {
         int c = tigrReadChar(app);
         if (c == 0) break;
-        if( window_pressed(app,TK_CONTROL)) break;
+        if( key_pressed(TK_CONTROL)) break;
         if( c == '\n' || c == '\r' ) { done = 1; break; }
-        if( window_pressed(app, TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
+        if( key_pressed( TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
+        if( c == '\b' && chars_count == 0 ) { done = 1; clear = 1; break; }
         if( c == '\t' && chars_count > 0 ) { anykey = 1; break; } // ?
         if( c <  32 && c != '\b' ) continue;
         if( c == 32 && chars_count == 0 ) continue;
@@ -661,7 +669,7 @@ int game_filter() { // returns true if any key was pressed
             ui_dialog_new(NULL);
             ui_dialog_option(2, va("<%s▁                             \n",utf8),NULL, 0,NULL);
         }
-        if( visible && window_longpress(app, TK_BACKSPACE) ) {
+        if( visible && key_longpress( TK_BACKSPACE) ) {
             memset(chars, chars_count = 0, sizeof(int)*_16); *filter = 0; anykey = 1;
         }
         if( visible && anykey ) {
@@ -682,21 +690,21 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     if (!numgames) return -1;
 
 #if 0
-    if( window_pressed(app, TK_CONTROL) && window_trigger(app, TK_HOME) )
+    if( key_pressed( TK_CONTROL) && key_trigger( TK_HOME) )
         return selected = 0, scroll = 0, -1;
-    if( window_pressed(app, TK_CONTROL) && window_trigger(app, TK_END) )
+    if( key_pressed( TK_CONTROL) && key_trigger( TK_END) )
         return selected = numgames % ENTRIES, scroll = numgames / ENTRIES, -1; //fixme
 #endif
 
     static int tbl[256] = {0};
-    int up = window_keyrepeat_(app, TK_DOWN, tbl) - window_keyrepeat_(app, TK_UP, tbl);
-    int pg = window_keyrepeat_(app, TK_PAGEDN, tbl) - window_keyrepeat_(app, TK_PAGEUP, tbl);
-    int home = window_pressed(app, TK_HOME) || (window_pressed(app, TK_UP) && tigrKeyHeld(app, TK_CONTROL));
-    int end  = window_pressed(app, TK_END) || (window_pressed(app, TK_DOWN) && tigrKeyHeld(app, TK_CONTROL));
+    int up = key_repeat_( TK_DOWN, tbl) - key_repeat_( TK_UP, tbl);
+    int pg = key_repeat_( TK_PAGEDN, tbl) - key_repeat_( TK_PAGEUP, tbl);
+    int home = key_pressed( TK_HOME) || (key_pressed( TK_UP) && tigrKeyHeld(app, TK_CONTROL));
+    int end  = key_pressed( TK_END) || (key_pressed( TK_DOWN) && tigrKeyHeld(app, TK_CONTROL));
 
     float wheel = mouse().wheel;
     if( wheel ) {
-        if( window_pressed(app, TK_CONTROL) ) {
+        if( key_pressed( TK_CONTROL) ) {
             pg = wheel > 0 ? 1 : -1;
         }
         else {
@@ -723,7 +731,7 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     int has_finder = !!num_options;
     int any = game_filter();
 
-    if( window_trigger(app, TK_RETURN) && !has_finder ) {
+    if( key_trigger( TK_RETURN) && !has_finder ) {
         return selected;
     }
 
@@ -765,19 +773,22 @@ char* game_browser_v1() {
         int flagged = 0;
         int starred = 0;
         if( i == selected ) {
-        if( window_pressed(app, TK_SHIFT) && window_trigger(app, TK_SPACE) ) flagged = 1;
-        if(!window_pressed(app, TK_SHIFT) && window_trigger(app, TK_SPACE) ) starred = 1;
+        if( key_pressed( TK_SHIFT) && key_trigger( TK_SPACE) ) flagged = 1;
+        if(!key_pressed( TK_SHIFT) && key_trigger( TK_SPACE) ) starred = 1;
         }
 
         int stars = (dbgames[i] >> 8);
         int flags = (dbgames[i] & 0x7F);
-        int color =
-            flags == 0 ? '\x7' : // untested
-            flags == 1 ? '\x2' : // fail
-            flags == 2 ? '\x6' : // warn
-                         '\x4' ; // good
 
         const char *title = sep+1;
+        int loaded; {
+        char filename[256]; snprintf(filename, 256, "%.*s", (int)(strlen(title) - is_dir), title);
+        loaded = is_dir ? 0 : !!strendi( window_title(NULL), filename );
+        }
+
+        static char colors[] = "\7\2\6\4";
+        colors[0] = loaded && ZXFlashFlag ? '\5' : '\7';
+        int color = colors[flags];
 
         char wildcard[128] = {0};
         if( filter && filter[0] && snprintf(wildcard, 128, "*%s*", filter) ) {
@@ -785,9 +796,9 @@ char* game_browser_v1() {
             if( strmatchi(title, wildcard) ) ui_alpha = 255;
         }
 
-        ui_at(ui, 1*11 + 3, (2+y++) * 11 + 2 );
+        ui_at(ui, 0, (2+y++) * 11 + 2 );
 
-        sprintf(buffer, "%3d.%s", i+1, i == selected ? ">":" ");
+        sprintf(buffer, "%c %c%3d.%s", colors[0], loaded ? '*':' ', i+1, i == selected ? ">":" ");
         ui_label(buffer);
 
 #if 0
@@ -809,15 +820,16 @@ char* game_browser_v1() {
 
         if( is_file )
         if( starred || flagged ) {
-            if( flagged ) flags = (flags+1) % 4;
+            int nextflag[] = { [0]=3,[1]=0,[2]=1,[3]=2 };
+            if( flagged ) flags = nextflag[flags]; // (flags+1) % 4;
             if( starred ) stars = stars != 'B' ? 'B' : 0;
             db_set(games[i], dbgames[i] = flags + (stars << 8));
         }
     }
 
     // issue browser
-    // if( window_trigger(app, TK_LEFT)  ) { for(--up; (selected+up) >= 0 && (dbgames[selected+up]&0xFF) <= 1; --up ) ; }
-    // if( window_trigger(app, TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
+    // if( key_trigger( TK_LEFT)  ) { for(--up; (selected+up) >= 0 && (dbgames[selected+up]&0xFF) <= 1; --up ) ; }
+    // if( key_trigger( TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
 
     if( clicked ) {
         return games[selected];
@@ -841,12 +853,12 @@ char* game_browser_v2() {
 
     // handle input
     struct mouse m = mouse();
-    int up = window_keyrepeat(app, TK_UP);
-    int down = window_keyrepeat(app, TK_DOWN);
-    int left = window_keyrepeat(app, TK_LEFT);
-    int right = window_keyrepeat(app, TK_RIGHT);
-    int page_up = window_keyrepeat(app,TK_PAGEUP);
-    int page_down = window_keyrepeat(app,TK_PAGEDN);
+    int up = key_repeat( TK_UP);
+    int down = key_repeat( TK_DOWN);
+    int left = key_repeat( TK_LEFT);
+    int right = key_repeat( TK_RIGHT);
+    int page_up = key_repeat(TK_PAGEUP);
+    int page_down = key_repeat(TK_PAGEDN);
 
     // constants
 
@@ -999,15 +1011,15 @@ char* game_browser_v2() {
         // exclude For(S)ale,(N)everReleased,Dupes(*),MIA(?) [include (A)vailable,(R)ecovered,(D)enied games]
         // exclude demos 72..78
         for( int i = 0; i < list_num; ++i ) {
-            char *zx_id = (char*)*list[i];
-            char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
-            char *title = strchr(years, '|')+1; int years_len = title-years-1;
-            char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
-            char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
-            char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
-            char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
-            char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
-            char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
+            const char *zx_id = (const char*)*list[i];
+            const char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
+            const char *title = strchr(years, '|')+1; int years_len = title-years-1;
+            const char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
+            const char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
+            const char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
+            const char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
+            const char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
+            const char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
 
             if( avail[1] == 'X' || !strchr("ARD", avail[0]) || atoi(genre) >= 72 ) {
                 memmove(list + i, list + i + 1, ( list_num - i - 1 ) * sizeof(list[0]));
@@ -1050,8 +1062,8 @@ char* game_browser_v2() {
     if( up || page_up )     if(--page < 0) page = 0;
     if( down || page_down ) if(++page >= NUM_PAGES) page = NUM_PAGES;
 
-    if( window_pressed(app, TK_HOME) ) page = 0;
-    if( window_pressed(app, TK_END)  ) page = NUM_PAGES;
+    if( key_pressed( TK_HOME) ) page = 0;
+    if( key_pressed( TK_END)  ) page = NUM_PAGES;
 #endif
 
     int chosen = game_browser_keyboard(ENTRIES_PER_PAGE, list_num);
@@ -1070,19 +1082,19 @@ char* game_browser_v2() {
         if( i < 0 ) continue;
         if( i >= list_num ) continue;
 
-        char *zx_id = (char*)*list[i];
-        char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
-        char *title = strchr(years, '|')+1; int years_len = title-years-1;
-        char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
-        char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
-        char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
-        char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
-        char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
-        char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
+        const char *zx_id = (const char*)*list[i];
+        const char *years = strchr(zx_id, '|')+1; int zx_id_len = years-zx_id-1;
+        const char *title = strchr(years, '|')+1; int years_len = title-years-1;
+        const char *alias = strchr(title, '|')+1; int title_len = alias-title-1;
+        const char *brand = strchr(alias, '|')+1; int alias_len = brand-alias-1;
+        const char *avail = strchr(brand, '|')+1; int brand_len = avail-brand-1;
+        const char *score = strchr(avail, '|')+1; int avail_len = score-avail-1;
+        const char *genre = strchr(score, '|')+1; int score_len = genre-score-1;
+        const char *tags_ = strchr(genre, '|')+1; int genre_len = tags_-genre-1;
 
-        // replace title if alias is what we're looking for
+        // replace title if alias is what we're searching for
         if( *tab == '#' ) {
-        if( *alias != '|' && (isdigit(*alias) || ispunct(*alias)) ) title = alias, title_len = alias_len;
+        if( *alias != '|' && !isdigit(*title) && !ispunct(*title) ) title = alias, title_len = alias_len;
         } else {
         if( title[0] != *tab && alias[0] == *tab ) title = alias, title_len = alias_len;
         }
@@ -1099,7 +1111,7 @@ char* game_browser_v2() {
 
         // replace brand if no brand is given. use 1st author if possible
         if( brand[0] == '|' ) {
-            char *next = strchr(zx_id, '\n');
+            const char *next = strchr(zx_id, '\n');
             if( next && next[1] == '@' ) { // x3 skips: '\n' + '@' + 'R'ole
                 brand = next+1+1+1, brand_len = strcspn(brand, "@\r\n");
             }
@@ -1116,11 +1128,12 @@ char* game_browser_v2() {
             /*"\2"*/"\f\x12\f\x12\f\x12", // 1 1 0
             /*"\2"*/"\f\x12\f\x12\f\x12", // 1 1 1
         };
-        static char colors[] = "\7\2\6\4";
 
         extern zxdb ZXDB;
         int loaded = ZXDB.ids[0] && atoi(ZXDB.ids[0]) == atoi(zx_id);
         if( loaded ) selection[0] = ui_x, selection[1] = ui_y;
+
+        static char colors[] = "\7\2\6\4";
         colors[0] = loaded && ZXFlashFlag ? '\5' : '\7';
 
         int dbid = atoi(zx_id);
@@ -1269,8 +1282,9 @@ char* game_browser_v2() {
         }
 
         if( flagged || starred ) {
+            int nextflag[] = { [0]=3,[1]=0,[2]=1,[3]=2 };
+            if( flagged ) flag = nextflag[flag]; // (flag+1) % 4;
             if( starred ) star = !star;
-            if( flagged ) flag = (flag + 1) % 4;
             cache_set(dbid, (vars & 0xff00) | (flag << 4) | star);
         }
                     

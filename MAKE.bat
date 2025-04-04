@@ -21,6 +21,10 @@ if [ "$(uname)" != "Darwin" ]; then
 gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
 upx -9 Spectral.linux
 
+# build polyfill and patch glibc, so our binary works in older linux distros as well
+# git clone https://github.com/corsix/polyfill-glibc && cd polyfill-glibc && ninja polyfill-glibc && cd ..
+# ./polyfill-glibc/polyfill-glibc --target-glibc=2.17 Spectral.linux
+
 # embed zxdb -----------------------------------------------------------------
 #src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
 #src/res/embed.linux Spectral.linux src/res/zxdb/Spectral.db.gz
@@ -78,6 +82,11 @@ if "%1"=="" (
 
 if "%1"=="-h" (
     echo make [asan^|dev^|opt^|rel] [compiler-flags]
+    exit /b
+)
+
+if "%1"=="cmd" (
+    %ALL_FROM_2ND%
     exit /b
 )
 
@@ -157,9 +166,10 @@ if "%1"=="opt" (
     call make nil /Ox /MT /DNDEBUG /GL /GF %ALL_FROM_2ND% || goto error
     rem false positives: +12
     rem where /q upx.exe && upx Spectral.exe
+    copy /y Spectral.exe SpectralNaked.exe > nul
 
     rem false positives: +2 - crowdstrike falcon, cylance
-    copy /b/y Spectral.exe+src\res\embed SpectralNoZXDB.exe > nul
+    copy /b/y SpectralNaked.exe+src\res\embed SpectralNoZXDB.exe > nul
     rem false positives: +1 - microsoft (defender)
     copy /b/y SpectralNoZXDB.exe+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
 
@@ -226,11 +236,11 @@ rem copy /y Debug\rcedit.exe ..\rcedit-x64.exe
 rem popd
 rem )
 
-timeout /t 2 && rem wait 2s for windows defender to scan our executable
+ping -n 2 -w 1500 localhost > nul && rem wait 1s between 2 consecutive pings, so windows defender is able to scan our executable
 where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
 where /q rcedit-x64 && ^
 rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!" && ^
-rcedit-x64 "Spectral.exe" --set-product-version "1.06-WIP Spectral" && ^
+rcedit-x64 "Spectral.exe" --set-product-version "1.07 Spectral" && ^
 rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico || goto error
 
 if "%__DOTNET_PREFERRED_BITNESS%"=="32" (

@@ -1,11 +1,3 @@
-#ifndef ALT_BORDER
-#define ALT_BORDER 1
-#endif
-
-static int SKIP_PAPER;
-static int SKIP_X = 0, SKIP_Z = 0;
-static int SKIP_Y = 24, SKIP_B = 64; // PENTAGON
-
 #define luma(r,g,b) ((r)*0.299+(g)*0.587+(b)*0.114)
 #define gray(r,g,b) rgb((byte)luma(r,g,b),(byte)luma(r,g,b),(byte)luma(r,g,b))
 
@@ -195,6 +187,32 @@ void palette_use(int palette, int bright) {
     }
 }
 
+// contention: http://www.zxdesign.info/memContRevision.shtml
+// @todo: dotcrawl (16/48) https://spectrumforeveryone.co.uk/technical/spectrum-compatibility-issues/
+// @fixme: "on Issue 1 and 2 machines that do not have the ‘spider mod’ installed, the behaviour of the ULA is to contend all I/O access. This is important, as we’ll see later."
+
+    // @todo: floating bus https://spectrumforeveryone.com/technical/memory-contention-floating-bus/
+    // @todo: floating bus https://spectrumforeveryone.com/technical/memory-contention-floating-bus/
+    //
+    // floating bus [16,48,128,+2]
+    //
+    // [ref] https://sinclair.wiki.zxnet.co.uk/wiki/Floating_bus
+    // [ref] https://github.com/jsmolina/z88dk-tutorial-sp1/blob/master/floating-bus.md
+    // [ref] https://softspectrum48.weebly.com/notes/category/floating-bus
+    //
+    // note: for +2A/+3 models, it works this way:
+    // While the effect is no longer present on unused ports, it is still evident when reading from ports
+    // which match a particular addressing pattern, expressed as (1+n*4), or in binary, 0000 xxxx xxxx xx01.
+    // This is only evident when the memory paging ports are unlocked, otherwise they will always return FF.
+    // In detail:
+    // 1. It is only found on ports that follow the pattern (1 + (4 * n) && n < 0x1000) (that is, ports 1, 5, 9, 13 . . . 4093).
+    // 2. The bus always returns 0xFF if bit 5 of port 32765 is set (i.e. paging is disabled), so it won’t work in 48K mode.
+    // 3. Otherwise, the value returned is the value currently read by the ULA ORed with 1 (i.e. Bit 0 is always set).
+    // 4. During idling intervals (i.e. when the ULA is drawing the border or in between fetching the bitmap/attribute byte), the bus latches onto the last value that was written to, or read from, contended memory, and not strictly 0xFF. This is crucial to keep in mind.
+    //
+    // @fixme: for floatspy.tap to be stable
+    // IM2 t_offs needs to be 25->22 (128K), 29->30 (48K)
+
 byte ulaplus_mode = 0; // 0:pal,1:mode,else:undefined
 byte ulaplus_data = 0;
 byte ulaplus_enabled = 0;
@@ -207,18 +225,179 @@ void ula_reset() {
     ulaplus_enabled = 0;
     ulaplus_grayscale = 0;
     memset(ulaplus_registers, 0, sizeof(ulaplus_registers));
-
-    palette_use(ZX_PALETTE, ZX_PALETTE ? 0 : 1);
-
-#if 0
-    // contended lookups
-    memset(contended, 0, sizeof(contended));
-    for( int i = 63, c = 6; i <= (63+192); ++i, --c ) {
-        contended[i*228]=c<0?0:c; // initial: 64*224 (48K)
-        if(c<0) c=6;
-    }
-#endif
 }
+
+uint64_t transact(uint64_t pins);
+
+void draw_8_pixels(rgba *texture, rgba *begin, rgba *end, byte pixel, byte attr) {
+    rgba fg, bg;
+
+    if (ulaplus_enabled) {
+        fg = ZXPalette[((attr & 0xc0) >> 2) | ((attr & 0x07))];
+        bg = ZXPalette[((attr & 0xc0) >> 2) | ((attr & 0x38) >> 3) | 8];
+    } else {
+        fg = ZXPalette[((attr >> 3) & 0x08) | (attr & 0x07)];
+        bg = ZXPalette[((attr >> 3) & 0x0F)];
+        pixel ^= (attr & 0x80) && ZXFlashFlag ? 0xff : 0x00;
+    }
+
+    // @fixme: make section branchless
+
+    if( /*(texture + 0) >= begin &&*/ (texture + 0) < end ) texture[0] = pixel & 0x80 ? fg : bg;
+    if( /*(texture + 1) >= begin &&*/ (texture + 1) < end ) texture[1] = pixel & 0x40 ? fg : bg;
+    if( /*(texture + 2) >= begin &&*/ (texture + 2) < end ) texture[2] = pixel & 0x20 ? fg : bg;
+    if( /*(texture + 3) >= begin &&*/ (texture + 3) < end ) texture[3] = pixel & 0x10 ? fg : bg;
+    if( /*(texture + 4) >= begin &&*/ (texture + 4) < end ) texture[4] = pixel & 0x08 ? fg : bg;
+    if( /*(texture + 5) >= begin &&*/ (texture + 5) < end ) texture[5] = pixel & 0x04 ? fg : bg;
+    if( /*(texture + 6) >= begin &&*/ (texture + 6) < end ) texture[6] = pixel & 0x02 ? fg : bg;
+    if( /*(texture + 7) >= begin &&*/ (texture + 7) < end ) texture[7] = pixel & 0x01 ? fg : bg;
+}
+
+void run(int do_sim, int TS, int x, int y) {
+    if(TS<=0) return;
+
+    extern Tigr* app;
+    rgba *texture = y >= 0 && y < _240 ? (rgba*)&app->pix[x + y * _320] : NULL;
+    rgba *begin = (rgba*)&app->pix[0];
+    rgba *end = (rgba*)&app->pix[_319 + _239 * _320];
+
+    uint64_t epoch = ticks;
+    int is_paper = TS == 128;
+    int is_contended = is_paper;
+
+    int CENTER_Y = _24 + (ZX_PENTAGON ? 8 : 0);
+
+    byte *pixels = 0, *attribs = 0;
+    if( is_paper ) {
+        if( y >= CENTER_Y && y < (CENTER_Y+192) ) {
+            y -= CENTER_Y;
+
+            // int third = y / 64; int y64 = y % 64;
+            // int bit3swap = (y64 & 0x38) >> 3 | (y64 & 0x07) << 3;
+            // int scanline = (bit3swap + third * 64) << 5;
+            #define SCANLINE(y) \
+                ((((((y)%64) & 0x38) >> 3 | (((y)%64) & 0x07) << 3) + ((y)/64) * 64) << 5)
+
+            assert(VRAM);
+            assert(y >= 0 && y < 192);
+            pixels=VRAM+SCANLINE(y);
+            attribs=VRAM+6144+((y&0xF8)<<2);
+        }
+
+        if( ZX_PENTAGON ) is_contended = 0; // disable further contention
+        if( ZX_TURBOROM && mic_on ) is_contended = 0;
+
+        #ifdef DEBUG_SCANLINE
+        //memset32(texture - x, ~0u, _320);
+        //sys_sleep(1000/60.);
+        #endif
+
+        // RF: misalignment. also glitches faster at max cpu speed
+        *texture = ZXPalette[ZXBorderColor];
+        enum { BAD = 8, POOR = 32, DECENT = 256 };
+        int shift0 = !ZX_RF ? 0 : (rand()<(RAND_MAX/(ZX_FASTCPU?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
+        texture += shift0;
+    }
+    if( DEV && ZX_DEVTOOLS && key_pressed(TK_TAB) ) pixels = attribs = 0;
+
+    int P = 0; // paper tick
+    static int B = 0; // border tick
+    static byte fetch[4] = {0}; // pixel 0x4000, attrib 0x5800, pixel 0x4001, attrib 0x5801, IDLE, IDLE, IDLE, IDLE ...
+
+    while( TS-- ) {
+
+        // see: https://sinclair.wiki.zxnet.co.uk/wiki/Floating_bus
+        if( is_paper ) {
+            /**/ if(P == 3)   *(floating_bus = fetch+0) = pixels ? *pixels++ : 0xFF;
+            else if(P == 4)   *(floating_bus = fetch+1) = attribs ? *attribs++ : ZXBorderColor;
+            else if(P == 5)   *(floating_bus = fetch+2) = pixels ? *pixels++ : 0xFF;
+            else if(P == 6) { *(floating_bus = fetch+3) = attribs ? *attribs++ : ZXBorderColor;
+                // Output 16 pixels every 8 cycles
+                if( texture )
+                    draw_8_pixels( (texture += 8) - 8, begin, end, fetch[0], fetch[1]),
+                    draw_8_pixels( (texture += 8) - 8, begin, end, fetch[2], fetch[3]);
+            }
+            else floating_bus = NULL;
+            P = (P+1) & 7;
+        } else {
+            floating_bus = NULL;
+            if( (B++ & 3) == 0 )
+                if( texture )
+                    draw_8_pixels( (texture += 8) - 8, begin, end, 0xFF, ZXBorderColor);
+        }
+
+        if( !do_sim ) continue;
+
+        ++ticks;
+        sys_audio();
+        fdc_tick(1);
+
+        // paper contention (border has no contention)
+        if( is_contended ) {
+            // see: https://sinclair.wiki.zxnet.co.uk/wiki/Contended_memory
+            // see: https://sinclair.wiki.zxnet.co.uk/wiki/Contended_I/O
+            // see: http://www.zxdesign.info/memContRevision.shtml
+            unsigned Ts = (ticks - epoch) & 7;
+            unsigned Ys = ZX > 200 ? Ts != 1 : Ts < 6; // either 1N765432 pattern for +2A/+3 case, or 654321NN pattern for 48/128/+2. 
+            if( Ys ) { // this happens on the first tstate (T1) of any instruction fetch, memory read or memory write operation.
+                const uint16_t addr = Z80_GET_ADDR(pins);
+
+                if( ZX >= 210 ? pins & Z80_MREQ : pins & Z80_MREQ || !floating_bus ) {
+                    if( pins & Z80_IORQ ) // (Z80_M1|Z80_MREQ|Z80_IORQ|Z80_RD|Z80_WR|Z80_RFSH);
+                    if( (addr & 0x0001) == 0x0000 ) continue;
+                    if( (addr & 0xC000) == 0x4000 ) continue; // equivalent to (addr >= 0x4000 && addr < 0x8000)
+                    if( (addr & 0xC000) == 0xC000 ) { // Contention is also applied if the address is between 0xc000 and 0xffff on a 128K Spectrum with a contended RAM bank paged into that address range. Note: 48K always has bank 0 paged in, which is not contended
+                        // 16/48/128/+2: pages 1,3,5,7 are contended (1), 0,2,4,6 not contended (0) -> so mask is 0001 (1)
+                        // +2A/+3:       pages 4,5,6,7 are contended (1), 0,1,2,3 not contended (0) -> so mask is 0100 (4)
+                        unsigned bank = page128&7; // (unsigned)(MEMr[addr >> 14] - mem) / 0x4000;
+                        unsigned is_contended_bank = (bank & (ZX >= 210 ? 4 : 1));
+                        if( is_contended_bank ) continue;
+                    }
+                }
+
+                // I/O operations performed during T3 and T4 cycles.
+                // Same than memory but it adds extra checks: contention of paged-in bank and A0 low bit.
+                //
+                // A15-A14 in contended page | A0 Low bit | Contention T3 pattern | Contention T4 pattern
+                //        No                 |      0     |  N                    |  YNNN
+                //        No                 |      1     |  N                    |  NNN
+                //        Yes                |      0     |  YN                   |  YNNN
+                //        Yes                |      1     |  YN                   |  YN, YN, YN
+
+                // detects t3 and t4
+                // uint64_t b4 = pins & (Z80_M1|Z80_WAIT|Z80_IORQ|Z80_RD|Z80_MREQ);
+                // uint64_t b3 = pins & (Z80_M1|Z80_WAIT|Z80_IORQ|Z80_RD|Z80_MREQ|Z80_WR|Z80_RFSH);
+                // uint64_t is_t4 = (b4 == 0) || (b4 == Z80_MREQ && (pins & Z80_WR));
+                // uint64_t is_t3 = !(b3 & (Z80_M1|Z80_RFSH)) && ((b3 & Z80_WAIT) || ((b3 & (Z80_MREQ|Z80_IORQ)) && (b3 & (Z80_RD|Z80_WR))));
+            }
+        }
+
+
+        tape_ticks += !!mic_on; // tick tape after contention, otherwise turborom will break
+
+        if (zx_int /*  && cpu.step == 2 && IFF1(cpu) */ ) { // adjust
+            zx_int = 0;
+
+            // request vblank interrupt
+            z80_interrupt(&cpu, 1);
+            B = 0;
+
+            // hold the INT pin for 32 ticks
+            int_counter = 32; // - (4 - (tick & 3)); // 23?
+
+            RZX_tick();
+        }
+        
+        // clear INT pin after 32 ticks
+        if (int_counter > 0) {
+            if(!--int_counter) z80_interrupt(&cpu, 0);
+        }
+
+        pins = z80_tick(&cpu, pins);
+        pins = transact(pins);
+    }
+}
+
 
 
 #define CLAMP(v, minv, maxv) ((v) < (minv) ? (minv) : (v) > (maxv) ? (maxv) : (v))
@@ -229,207 +408,6 @@ static float dt;
 static double timer;
 static int flick_frame;
 static int flick_hz;
-
-int tick2offset(int tick, int TS, int *col) {
-    // 352x288 phys, _320x_240 virt, bottom/left lines more important than top/upper lines    
-
-tick -= 36; // +8;
-
-    int tx = tick % (TS/2);
-    int ty = tick / TS; //ty -= (288 - _240) / 2; if(ty < 0) continue;
-
-    // skip invisible lines (vsync & overscan)
-    ty -= SKIP_Y; //(288 - _240) / 2;
-    if( ty < 0 ) return -1;
-    if( ty >= _240 ) return -1;
-
-    int is_paper_line = ty >= abs(_240-192)/2 && ty < _240-abs(_240-192)/2;
-
-*col = (tx < TS/2) + 2;
-
-if( !is_paper_line ) tx *= 2;
-else if( tx >= 32 ) tx += (256+16);
-
-    return tx + ty * _320;
-}
-
-void draw_border() {
-    extern window *app;
-    int width = _32+256+_32;
-    rgba *begin = &((rgba*)app->pix)[0 + 0 * width];
-    rgba *end = &((rgba*)app->pix)[(app->w-1) + (app->h-1) * (app->w)];
-
-    int TS = (ZX >= 128 ? 228 : 224) - (ZX_PENTAGON * 4);
-
-    if( ZX_DEVTOOLS )
-    {
-        if( GetFocus() ) {
-        if( GetAsyncKeyState('X') & 0x1 ) SKIP_PAPER^= 1;
-        if( GetAsyncKeyState('Q') & 0x1 ) SKIP_X++;
-        if( GetAsyncKeyState('A') & 0x1 ) SKIP_X--; //if(SKIP_X < 0) SKIP_X = 0;
-        if( GetAsyncKeyState('W') & 0x1 ) SKIP_Y++;
-        if( GetAsyncKeyState('S') & 0x1 ) SKIP_Y--; if(SKIP_Y < 0) SKIP_Y = 0;
-        if( GetAsyncKeyState('E') & 0x1 ) SKIP_Z++;
-        if( GetAsyncKeyState('D') & 0x1 ) SKIP_Z--; //if(SKIP_Z < 0) SKIP_Z = 0;
-        if( GetAsyncKeyState('R') & 0x1 ) SKIP_B++;
-        if( GetAsyncKeyState('F') & 0x1 ) SKIP_B--; //if(SKIP_B < 0) SKIP_B = 0;
-        }
-
-        char buf[128];
-        sprintf(buf, "TS=%d(%03d,%03d) SKIP=%d,%d,%d,%d [%d|%d], [%d|%d], [%d|%d], [%d|%d], [%d|%d]",
-            TS, mouse().x, mouse().y, SKIP_X, SKIP_Y, SKIP_Z, SKIP_B,
-            border[0] >> 24, border[0] & 0x00FFFFFF,
-            border[1] >> 24, border[1] & 0x00FFFFFF,
-            border[2] >> 24, border[2] & 0x00FFFFFF,
-            border[3] >> 24, border[3] & 0x00FFFFFF,
-            border[4] >> 24, border[4] & 0x00FFFFFF
-        );
-        window_title(app, buf);
-    }
-
-    rgba *texture = 0;
-    rgba *origin = 0;
-
-    memset32(begin, ZXPalette[ZXBorderColor], end - begin);
-
-    for( int i = 1; i < border_num; ++i ) { // -1; i >= 1; --i ) {
-        int color = border[i-1] >> 24;
-        int tick = border[i-1] & 0x00FFFFFF;
-        int next = border[i] & 0x00FFFFFF;
-
-        int col1, col2;
-
-        int offset1 = tick2offset(tick, TS, &col1);
-        if( offset1 < 0 ) continue;
-
-        assert( tick < next);
-        int offset2 = tick2offset(next, TS, &col2);
-        if( offset2 < 0 ) continue;
-
-        if( ZX_DEVTOOLS ) color = color ? col1 : color;
-
-        texture = begin + (offset1 % _320) + (offset1 / _320) * _320;
-        if(!origin) origin = texture;
-
-        int pixels = abs(offset2 - offset1) * 1;
-
-        if( (texture + pixels) >= end ) {
-            int pixels2 = end - texture; assert( end > texture );
-            memset32(texture, ZXPalette[color], pixels2);
-            break;
-        }
-        if( pixels ) {
-            memset32(texture, ZXPalette[color], pixels);
-        }
-    }
-
-    // dupe x2
-    for( int tick = 0; tick < ZX_TS; tick += TS ) {
-        int ty = tick / TS;
-
-        ty -= SKIP_Y;
-        if( ty < 0 ) continue;
-        if( ty >= _240 ) continue;
-
-        int is_paper_line = ty >= abs(_240-192)/2 && ty < _240-abs(_240-192)/2;
-        if(!is_paper_line) continue;
-
-        unsigned *p = &begin[ 0 + ty * _320 ];
-        unsigned *q = p + 256+16+48; // 256+16;
-        for( int x = 32+1; --x > 0; ) {
-            p[x*2-1] = p[x*2-2] = p[x];
-            q[x*2-1] = q[x*2-2] = q[x];
-        }
-    }
-}
-
-void draw(window *win, int y /*0..311 tv scanline*/) {
-    int width = _32+256+_32;
-    rgba *texture = &((rgba*)win->pix)[0 + y * width];
-
-    // int third = y / 64; int y64 = y % 64;
-    // int bit3swap = (y64 & 0x38) >> 3 | (y64 & 0x07) << 3;
-    // int scanline = (bit3swap + third * 64) << 5;
-    #define SCANLINE(y) \
-        ((((((y)%64) & 0x38) >> 3 | (((y)%64) & 0x07) << 3) + ((y)/64) * 64) << 5)
-
-#if ALT_BORDER
-    texture += SKIP_B/* _32 */;
-#else
-    // border left
-    for(int x=0;x<_32;++x) *texture++=ZXPalette[ZXBorderColor];
-#endif
-
-    // paper
-    if( y >= (0+_24) && y < (192+_24) )
-    {
-        y -= _24;
-        byte *pixels=VRAM+SCANLINE(y);
-        byte *attribs=VRAM+6144+((y&0xF8)<<2);
-
-// RF: misalignment
-*texture = ZXPalette[ZXBorderColor];
-enum { BAD = 8, POOR = 32, DECENT = 256 };
-int shift0 = !ZX_RF ? 0 : (rand()<(RAND_MAX/(ZX_FASTCPU?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
-texture += shift0;
-
-        for(int x = 0; x < 32; ++x) {
-            byte attr = *attribs;
-            byte pixel = *pixels, fg, bg;
-
-            // @fixme: make section branchless
-
-            if (ulaplus_enabled) {
-                fg = ((attr & 0xc0) >> 2) | ((attr & 0x07));
-                bg = ((attr & 0xc0) >> 2) | ((attr & 0x38) >> 3) | 8;
-            } else {
-                pixel ^= (attr & 0x80) && ZXFlashFlag ? 0xff : 0x00;
-                fg = ((attr >> 3) & 0x08) | (attr & 0x07); // ((attr & 0x40) >> 3); // 0x40 typo?
-                bg = ((attr >> 3) & 0x0F);
-            }
-
-            // @fixme: make section branchless
-
-            texture[0]=ZXPalette[pixel & 0x80 ? fg : bg];
-            texture[1]=ZXPalette[pixel & 0x40 ? fg : bg];
-            texture[2]=ZXPalette[pixel & 0x20 ? fg : bg];
-            texture[3]=ZXPalette[pixel & 0x10 ? fg : bg];
-            texture[4]=ZXPalette[pixel & 0x08 ? fg : bg];
-            texture[5]=ZXPalette[pixel & 0x04 ? fg : bg];
-            texture[6]=ZXPalette[pixel & 0x02 ? fg : bg];
-            texture[7]=ZXPalette[pixel & 0x01 ? fg : bg];
-
-            texture += 8;
-
-            pixels++;
-            attribs++;
-        }
-
-texture -= shift0;
-
-    }
-
-#if ALT_BORDER
-    texture += 256;
-#else
-    // top/bottom border
-    else {
-    for(int x=0;x<256;++x) *texture++=ZXPalette[ZXBorderColor];
-    }
-#endif
-
-#if ALT_BORDER
-    texture += _32;
-#else
-    // border right
-    for(int x=0;x<_32;++x) *texture++=ZXPalette[ZXBorderColor];
-#endif
-
-#ifdef DEBUG_SCANLINE
-    memset(texture, 0xFF, width * 4);
-    //    sys_sleep(1000/60.);
-#endif
-}
 
 void blur(window *win) {
     int height = _24+192+_24;
@@ -526,146 +504,101 @@ void scanlines(window *win) {
 void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanlines (1)
     extern window *app;
 
-    if( !ZX_DEVTOOLS ) {
-        if( ZX <= 48 ) {
-            SKIP_Y = 8;
-        }
-        if( ZX >= 128 ) {
-            SKIP_Y = 6;
-        }
-        if( ZX_PENTAGON ) {
-            SKIP_Y = 24, SKIP_B = 64;
-        }
-    }
-
     // notify new frame
     if(do_sim) frame_new();
 
     // NO RENDER
     if( drawmode < 0 ) {
-        if(do_sim) run(ZX_TS);
+        run(do_sim,ZX_TS,0,-1);
         return;
     }
-
-if( !SKIP_PAPER ) {
-#if ALT_BORDER
-    // we are drawing border from previous frame
-    // technically, we should draw border *after* the frame has been emulated, not before.
-    draw_border();
-#endif
-    border_num = 0;
-    border_org = ticks;
-    border[border_num] = ZXBorderColor << 24 | 0;
-}
 
     // FRAME RENDER
     if( drawmode == 0 ) {
-        if(do_sim) run(ZX_TS);
-        for( int y = 0; y < 24+192+24; ++y ) draw(app, y);
+        run(do_sim,ZX_TS,0,0);
         return;
     }
 
-    // most models start in late_timings, and convert into early_timings as they heat
-    bool early_timings = ZX != 200; // however, +2 is always late_timings
+    // first scanline
+    // most models start in late_timings, and convert into early_timings as they heat up. however, +2 is always late_timings.
+    // to simplify, we emulate late_timings all the time, by an additional single TS to the initial paper scanline.
 
+    enum { _24_8 = _24 + 8 };
+ 
     // SCANLINE RENDER
     if( ZX_PENTAGON ) {
         // Pentagon: see https://worldofspectrum.net/rusfaq/index.html
         // 320 scanlines = 16 vsync + 64  upper + 192 paper + 48 bottom
         // each scanline = 32 hsync + 36 border + 128 paper + 28 border = 224 TS/scanline
         // total = (16+64+192+48) * 224 = 320 * (32+36+128+28) = 320 * 224 = 71680 TS
-        const int TS = 224;
-        for( int y = 0; y <  16; ++y ) { if(do_sim) zx_int = !y, run(TS); }
-        for( int y = 0; y <  64; ++y ) { if(do_sim) run(TS); if(y>(64-_24-1)) draw(app, y-(64-_24)); }
-        for( int y = 0; y < 192; ++y ) { if(do_sim) run(TS);                  draw(app, _24+y); }
-        for( int y = 0; y <  48; ++y ) { if(do_sim) run(TS); if(y<_24)        draw(app, _24+192+y); }
+        static ifndef(DEV,const) int TS = 224, YY = 319, XX = 186, BR = 32; // XX = 24
+#if DEV
+        if( ZX_DEVTOOLS ) {
+        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 320, XX, BR);
+        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
+        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
+        }
+#endif
 
-        // @fixme: this should not be needed. we can just scroll Y the initial vsync line within the `app` bitmap. see: second for() above
-        unsigned *bottom = (unsigned *)&app->pix[0+(_240-8)*_320];
-        memset32(bottom,bottom[-1],_320*8);
+        for( int y = 0; y <  80; ++y ) run(do_sim,TS,0,y-(80-_24_8));
+        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24_8+y),run(do_sim,128,BR*2,_24_8+y),run(do_sim,TS-128-BR,(128+BR)*2,_24_8+y);
+        for( int y = 0; y <  47; ++y ) run(do_sim,TS,0,_24_8+192+y);
+
+        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
+        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+
+#if 0
+        // blank remaining lines.
+        // we could maybe scroll down the whole bitmap by 8px (there are hidden lines in the upper section); run() would need to be modified.
+        int excess = 320 - _240;
+        if( excess > 0 ) {
+        unsigned *bottom = (unsigned *)&app->pix[0+(_240-excess)*_320];
+        memset32(bottom,ZXPalette[0],_320*excess);
+        }
+#endif
     }
     else if( ZX < 128 ) {
         // 48K: see https://wiki.speccy.org/cursos/ensamblador/interrupciones http://www.zxdesign.info/interrupts.shtml
         // 312 scanlines = 16 vsync + 48  upper + 192 paper + 56 bottom
         // each scanline = 48 hsync + 24 border + 128 paper + 24 border = 224 TS/scanline
         // total = (16+48+192+56) * 224 = 312 * (48+24+128+24) = 312 * 224 = 69888 TS
-        const int TS = 224;
-        if( do_sim ) zx_int = 0, run(24-early_timings), zx_int = 1, run(TS-24-early_timings);
-        for( int y = 1; y <  64; ++y ) { if(do_sim) run(TS); if(y>(64-_24-1)) draw(app, y-(64-_24)); }
-        for( int y = 0; y < 192; ++y ) { if(do_sim) run(TS);                  draw(app, _24+y); }
-        for( int y = 0; y <  56; ++y ) { if(do_sim) run(TS); if(y<_24)        draw(app, _24+192+y); }
+        static ifndef(DEV,const) int TS = 224, YY = 0, XX = 29+4, BR = 32; // YY=311,XX=223
+#if DEV
+        if( ZX_DEVTOOLS ) {
+        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 312, XX, BR);
+        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
+        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
+        }
+#endif
+
+        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
+        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+
+        for( int y = 1; y <  64; ++y ) run(do_sim,TS-(y==63),0,y-(64-_24));
+        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24+y),run(do_sim,128,BR*2,_24+y),run(do_sim,TS-128-BR,(128+BR)*2,_24+y);
+        for( int y = 0; y <  56; ++y ) run(do_sim,TS+(y==55),0,_24+192+y);
+
     } else {
         // 128K:https://wiki.speccy.org/cursos/ensamblador/interrupciones https://zx-pk.ru/threads/7720-higgins-spectrum-emulator/page4.html
         // 311 scanlines = 15 vsync + 48  upper + 192 paper + 56 bottom
         // each scanline = 48 hsync + 26 border + 128 paper + 26 border = 228 TS/scanline
         // total = (63+192+56) * 228 = 311 * (48+26+128+26) = 311 * 228 = 70908 TS
-        const int TS = 228;
-        if( do_sim ) zx_int = 0, run(26-early_timings), zx_int = 1, run(TS-26-early_timings);
-        for( int y = 2; y <  64; ++y ) { if(do_sim) run(TS); if(y>(64-_24-1)) draw(app, y-(64-_24)); }
-        for( int y = 0; y < 192; ++y ) { if(do_sim) run(TS);                  draw(app, _24+y); }
-        for( int y = 0; y <  56; ++y ) { if(do_sim) run(TS); if(y<_24)        draw(app, _24+192+y); }
-    }
-
-if( SKIP_PAPER ) {
-#if ALT_BORDER
-    // we are drawing border from previous frame
-    // technically, we should draw border *after* the frame has been emulated, not before.
-    draw_border();
-#endif
-    border_num = 0;
-    border_org = ticks;
-    border[border_num] = ZXBorderColor << 24 | 0;
-}
-
-#if 0
-    // @todo
-    // PIXEL RENDER
-    if( drawmode == 2 ) {
-        TS = 0;
-
-        // 128K
-        // There are 63 scanlines before the television picture, as opposed to 64.
-        // To modify the border at the position of the first byte of the screen (see the 48K ZX Spectrum section for details), the OUT must finish after 14365, 14366, 14367 or 14368 T states have passed since interrupt. As with the 48K machine, on some machines all timings (including contended memory timings) are one T state later.
-        // Note that this means that there are 70908 T states per frame, and the '50 Hz' interrupt occurs at 50.01 Hz, as compared with 50.08 Hz on the 48K machine. The ULA bug which causes snow when I is set to point to contended memory still occurs, and also appears to crash the machine shortly after I is set to point to contended memory.
-        // 228 TS/scanline, 311 scanlines
-
-        // A single ZX Spectrum display row takes 224 T-States, including the horizontal flyback. For every T-State 2 pixels are written to the display, so 128 T-States pass for the 256 pixels in a display row. The ZX Spectrum is clocked at 3.5 MHz, so if 2 pixels are written in a single CPU clock cycle, the pixel clock of our display must be 7 MHz. A single line thus takes 448 pixel clock cycles.
-        // The left and right border areas can be shown to be 48 pixels wide, which gives a visible row of 352 pixels (and the border equivalent) in total. That would take 352 / 2 = 176 T-States to display, and we know that a display row takes 224 T-States, so the lost 96 T-States must be used during the horizontal flyback of the electron beam to the start of the new row.
-
-        static int vs = 0;
-        if(window_trigger(app,'T')) { vs+=1; printf("%d\n", vs); }
-        if(window_trigger(app,'G')) { vs-=1; printf("%d\n", vs); }
-
-        for( int tv = 0; tv < 311; ++tv ) {
-            int y = (tv - 24);
-            zx_int = (tv == vs);
-            if(y < 0 || y >= 240) run(228);
-            else {
-                // 16px left extra
-                run(2*4);
-                // 32px left
-                run(4*4);
-                draw(app, y, 0, 4);
-                // 256px main
-                int excess = 0;
-                for( int x = 0; x < 32; ++x ) {
-                    run(4 - excess);
-                    excess = 0;
-                    excess += !!vram_accesses * contended[TS/4];
-                    vram_accesses = 0;
-                    draw(app, y, 32+x*8, 1);
-                }
-                // 32px right
-                run(4*4);
-                draw(app, y, 32+256, 4);
-                // 16px right extra
-                run(2*4);
-                // retrace
-                run(52);
-            }
+        static ifndef(DEV,const) int TS = 228, YY = 0, XX = 29+4, BR = 32; // XX = 24, BR = 26
+#if DEV
+        if( ZX_DEVTOOLS ) {
+        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 311, XX, BR);
+        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
+        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
         }
-    }
 #endif
+
+        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
+        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+
+        for( int y = 1; y <  63; ++y ) run(do_sim,TS-(y==62),0,y-(63-_24));
+        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24+y),run(do_sim,128,BR*2,_24+y),run(do_sim,TS-128-BR,(128+BR)*2,_24+y);
+        for( int y = 0; y <  56; ++y ) run(do_sim,TS+(y==55),0,_24+192+y);
+    }
 
 #if 1
     // detect ZX_RF flip-flop
@@ -675,7 +608,7 @@ if( SKIP_PAPER ) {
 
     if(ZX_RF) {
         static window *blend = 0;
-        if(!blend) blend = window_bitmap(_320, _240);
+        if(!blend) blend = tigrBitmap(_320, _240);
 
         // reset bitmap contents when re-enabling ZX_RF
         if( refresh ) tigrBlit(blend, app, 0,0, 0,0, _320,_240);
@@ -693,6 +626,15 @@ if( SKIP_PAPER ) {
         blur(app);
     }
 #endif
+
+    // emulate faulty ZX_HAL10H8 chip as used in 128/+2 models
+    // http://www.worldofspectrum.org/forums/showthread.php?t=38284
+    if( (I(cpu) & 0xC0) && ZX_HAL10H8 && (ZX == 128 || ZX == 200) ) {
+        int bank = (page128 & 7);
+        int is_contended_bank = bank & 1;
+        if( I(cpu) >= 0x40 && I(cpu) < 0x80 ) PC(cpu) = 0;
+        if( I(cpu) >= 0xC0 && is_contended_bank ) PC(cpu) = 0;
+    }
 }
 
 const char *shader = 

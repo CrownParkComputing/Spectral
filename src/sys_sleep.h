@@ -256,3 +256,38 @@ void SDL_DelayPrecise(Uint64 ns)
 
 #define sys_sleep_precisens SDL_DelayPrecise
 
+
+
+
+
+
+#ifdef _WIN32
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
+void SDL_Delay(double milliseconds) {
+    // For >=1ms, use Sleep; for <1ms, use busy-wait
+    if (milliseconds >= 1.0) {
+        // Set timer resolution to 1ms
+        timeBeginPeriod(1);
+
+        Sleep((DWORD)milliseconds);
+
+        // Restore timer resolution
+        timeEndPeriod(1);
+
+        milliseconds -= (DWORD)milliseconds;
+    }
+
+    if( milliseconds > 0 ) {
+        LARGE_INTEGER freq, start, current;
+        QueryPerformanceFrequency(&freq);
+        double ticks_per_ms = (double)freq.QuadPart / 1000.0;
+        QueryPerformanceCounter(&start);
+        double target_ticks = start.QuadPart + (milliseconds * ticks_per_ms);
+
+        do {
+            QueryPerformanceCounter(&current);
+        } while ((double)current.QuadPart < target_ticks);
+    }
+}
+#endif

@@ -1,7 +1,5 @@
 // known issues:
 
-// woodster "for me any tstate count is relative to /INT going low and the ULA starts contention on 14335 tstates"
-
 // runahead
 // - bonanza bros.dsk
 
@@ -16,16 +14,9 @@
 // media
 // - scl not being saved on exit (borderbreak)
 
-// ini
-// - add setting: games folder
-
 // pzx
 // - load_flowcontrol\HollywoodPoker.pzx
 // - load_gdb\Book Of The Dead - Part 1 (CRL).pzx
-
-// gui
-// - utf8 no czech/hungarian/slovak: ČĎĚŇŘŠŤŽ čďěňřšťž Ýý ÔôŐő ŰűŮů Ĺĺ Ľľ Ŕŕ (see tabs: d,k,m,p,r,t)
-// - no inputbox
 
 // gallery
 // - 0-byte .zips on Linux
@@ -33,10 +24,8 @@
 
 // zxdb
 // - infos get lost between different .sav sessions
-// - overlay: no panning (mouse/key), no zooming
 // - JACKNIP.TAP ; difficult to get it right without hyphenation. best we could do for now is search JACKNIP%
-// - instructions: wordwrap, utf8 bom
-// - no mp3s
+// - instructions: utf8 bom
 // - maps: battle valley, river raid
 
 // embedded zxplayer
@@ -53,7 +42,7 @@
 // .dsk files:
 // - no offset-info\r\n extension. see: mercs(samdisk), paperboy2
 // .sav files:
-// - // may be corrupt. repro steps: many save/loads (see: jacknipper2 menu, RAIDERS.ROM screen$)
+// - // may be corrupt. repro steps: many save/loads (see: jacknipper2 menu, mask3 menu, RAIDERS.ROM screen$)
 // - may be corrupt. repro steps: save during tape load or disk load
 // - tape marker not very exact in turborom medias
 // altroms:
@@ -71,19 +60,13 @@
 // - fix: indiana jones last crusade
 // - p-47 in-game click sound (ayumi? beeper?). double check against real zx spectrum
 // - OddiTheViking128
-// crash (vsync/int line?):
-// - hostages(erbe) +2, +3 versions. 48 is ok.
 // disciple/plusd/mgt (lack of):
 // - zxoom.z80
-// floating:
-// - not working yet
-// - gloop (probably)
 // keyboard:
 // - modern typing. eg, shift+2 for quotes, not symb+P.
 // lightgun:
 // - gunstick + (kempston || kmouse) conflicts
 // mouse:
-// - no wheel
 // - kms window focus @ MMB+tigr, kms wrap win borders, kms fullscreen, kms coord wrap (inertia, r-type128-km)
 // - load rtype-km, load another game or reset, notice no mouse cursor
 // pentagon:
@@ -94,12 +77,6 @@
 // - linux: no mouse clip
 // - osx: no mouse clip
 // - osx: retina too heavy?
-// timing:
-// - border: sentinel, defenders of earth, dark star, gyroscope II, super wonder boy (pause)
-// - border: aquaplane, olympic games, vectron, mask3, jaws, platoon
-// - multicolor: mask3, shock megademo, MDA, action force 2, old tower, hardy
-// - contended: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
-// - floating: arkanoid (original), cobra (original), sidewize, short circuit
 // trdos
 // - page in .z80 not handled
 // turborom:
@@ -121,7 +98,7 @@ int ZX; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_AY = 2; // 0: no, 1: fast, 2: accurate
 int ZX_PALETTE = 0; // 0: own, N: others
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
-int ZX_JOYSTICK = 3; // 0: no, 1: sinclair1, 2: sinclair2, 3: cursor/fuller/kempston/protek, 4..: custom mappings
+int ZX_JOYSTICK = 1|2|16; // 0: no, |1: cursor/protek/agf, |2: kempston, |4: sinclair1, |8: sinclair2, |16: fuller, |32:kempston2, >=256:... custom mappings
 int ZX_AUTOFIRE = 0; // 0: no, 1: slow, 2: fast
 int ZX_AUTOPLAY = 0; // yes/no: auto-plays tapes based on #FE port reads
 int ZX_AUTOSTOP = 0; // yes/no: auto-stops tapes based on #FE port reads
@@ -148,6 +125,9 @@ int ZX_DEBUG = 0; // status bar, z80 disasm
 int ZX_INPUT = 1;
 
 int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
+
+int ZX_MULTIFACE = 0; // 0:(no), 1:(yes, any kind)
+int ZX_HAL10H8 = 1; // 0:(good), 1:(faulty HAL10H8 chip, as used in 128/+2 models)
 
 const char *ZX_FN_STR[] = {"ESC","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"};
 int ZX_FN[12+1] = {'GAME'}; // redefineable function keys. FN[0] = ESC, FN[1..12] = F1..F12
@@ -181,6 +161,7 @@ const char *ZX_FOLDER = 0;
     X(ZX_ALTROMS) \
     X(ZX_PALETTE) \
     X(ZX_AUTOFIRE) \
+    X(ZX_MULTIFACE) \
     X(ZX_FN[0]) X(ZX_FN[1]) X(ZX_FN[2]) X(ZX_FN[3]) X(ZX_FN[4]) X(ZX_FN[5]) \
     X(ZX_FN[6]) X(ZX_FN[7]) X(ZX_FN[8]) X(ZX_FN[9]) X(ZX_FN[10]) X(ZX_FN[11]) X(ZX_FN[12]) \
     X(ZX_PAD[0]) X(ZX_PAD[1]) X(ZX_PAD[2]) X(ZX_PAD[3]) X(ZX_PAD[4]) X(ZX_PAD[5]) \
@@ -202,17 +183,13 @@ void boot(int model, unsigned flags);
 void reset(unsigned flags);
 void eject();
 
-void run(unsigned TS);
+//void run(unsigned TS, int is_paper);
 
 void frame_new();
 void frame(int drawmode, int do_sim); // no render (<0), whole frame (0), scanlines (1)
 
 void* quicksave(unsigned slot);
 void* quickload(unsigned slot);
-
-unsigned border[71680];
-unsigned border_num;
-uint64_t border_org;
 
 // z80
 z80_t cpu;
@@ -235,10 +212,7 @@ int int_counter;
     #define ROM_EDITOR() ROM_BANK(GET_EDITOR_ROMBANK())
     #define ROM_3DOS()   ROM_BANK(GET_3DOS_ROMBANK())
 
-    int vram_contended;
-    int vram_accesses;
-    //byte contended[70908];
-    unsigned short floating48[70908], floating128[70908], *floating_bus;
+    byte *floating_bus;
 
     byte *mem; // 48k
     byte *rom;
@@ -246,13 +220,13 @@ int int_counter;
 
     // 16/48/128/+2: pages 1,3,5,7 are contended (1), 0,2,4,6 not contended (0) -> so mask is 0001 (1)
     // +2A/+3:       pages 4,5,6,7 are contended (1), 0,1,2,3 not contended (0) -> so mask is 0100 (4)
-    //#define IS_CONTENDED_PAGE(addr) !!((addr >> 14) & (ZX >= 210 ? 4 : 1))
+    //#define IS_CONTENDED_PAGE(addr) (!!(((addr - mem) >> 14) & (ZX >= 210 ? 4 : 1)))
 
     #define ADDR8(a)     ((byte *)&MEMr[(a)>>14][(a)&0x3FFF])
-    #define READ8(a)     (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMr[(a)>>14][(a)&0x3FFF])
-    #define READ16(a)    (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMr[(a)>>14][(a)&0x3FFF])
-    #define WRITE8(a,v)  (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
-    #define WRITE16(a,v) (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
+    #define READ8(a)     (*(byte *)&MEMr[(a)>>14][(a)&0x3FFF])
+    #define READ16(a)    (*(word *)&MEMr[(a)>>14][(a)&0x3FFF])
+    #define WRITE8(a,v)  (*(byte *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
+    #define WRITE16(a,v) (*(word *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
 
 // ula
 int  ZXFlashFlag;
@@ -273,7 +247,7 @@ int issue2;
 int keymap[5][5];
 
 // joysticks
-byte kempston,fuller;
+byte fuller,kempston,kempston2;
 
 // mouse
 byte kempston_mouse;
@@ -345,30 +319,29 @@ int file_is_supported(const char *filename, int skip) {
 #include "zx_tap.h" // requires page128
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
-#include "zx_ula.h"
 #include "zx_db.h"
 #include "zx_rzx.h"
+#include "zx_ula.h"
 
 // 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded, 4: ay loaded
-int loadbin_(const byte *ptr, int size, int preloader) {
+int loadbin_(const byte *ptr, int size, int preloader, int model) {
     if(!(ptr && size > 10))
         return 0;
 
-    // is it a zip? unzip & try to recurse...
+    // is it a zip? unzip & try to recurse... @todo: also .rar, .gz
     if( size > 4 && !memcmp(ptr, "PK\3\4", 4) ) {
         for( FILE *fp = fopen(".Spectral.loadbin.zip","wb"); fp; fclose(fp), fp = 0) {
             fwrite(ptr, size, 1, fp);
         }
         int len2; char *ptr2 = unzip(".Spectral.loadbin.zip/*", &len2);
-        int ret2 = loadbin_(ptr2, len2, preloader);
+        int ret2 = loadbin_(ptr2, len2, preloader, model);
         return unlink(".Spectral.loadbin.zip"), free(ptr2), ret2;
     }
 
     if( preloader ) {
-        int model = guess(ptr, size);
-        ZX_PENTAGON = model < 0; model = abs(model);
-        if( ZX != model ) boot(model, ~0u);
-        else reset(ZX);
+        if( model == 0 ) model = guess(ptr, size);
+        if( model != (ZX|ZX_PENTAGON) ) boot(model, ~0u);
+        else reset(ZX|ZX_PENTAGON);
     }
 
     ZX_AUTOPLAY = 1;
@@ -461,12 +434,17 @@ int loadbin_(const byte *ptr, int size, int preloader) {
     return 0;
 }
 
-int loadbin(const byte *ptr, int size, int preloader) {
+int loadbin(const byte *ptr, int size, int preloader, int model) {
     if(!(ptr && size))
         return 0;
 
-    int ret = loadbin_(ptr, size, preloader);
-    if( ret > 1 ) media_mount(ptr, size);
+    int ret = loadbin_(ptr, size, preloader, model);
+    if( ret ) {
+    int change_model = ret != 2; // you select zx model before loading any tape. however, other medias (disks,snapshots,ay,etc.) change model for you actually
+    if( change_model ) ret = loadbin_(ptr, size, preloader, 0); // retry. snapshots and disks need a model change because of preloaders
+    if( change_model ) ret = loadbin_(ptr, size, preloader, 0); // retry. tries to fix a stupid bug that wont initialize fdc/+3 properly (see: defendersoftheearth.dsk on a dev build + no .sav file)
+    if( ret >  1 ) media_mount(ptr, size);
+    }
     return ret;
 }
 
@@ -538,7 +516,7 @@ void *zip_read(const char *filename, size_t *size) {
         }
 
         if( count_tapes )
-        qsort(alpha_tapes, count_tapes, sizeof(char *), qsort_strcmp);
+        qsort(alpha_tapes, count_tapes, sizeof(char *), qsort_compare);
 
         for( unsigned j = 0 ; j < count_tapes; ++j ) {
             int i = zip_find(z, alpha_tapes[j]); // convert entry to index. returns <0 if not found.
@@ -575,9 +553,12 @@ void *zip_read(const char *filename, size_t *size) {
 
 static struct zxdb ZXDB;
 static char *last_load;
-int loadfile(const char *file, int preloader) {
+static char *last_title;
+int loadfile(const char *file, int preloader, int model_) {
     if( !file ) return 0;
     if( !is_file(file) ) return 0;
+
+    last_title = (free(last_title), strdup(file));
 
     const char *bak = file;
     if( file != last_load ) last_load = (free(last_load), strdup(file));
@@ -600,8 +581,8 @@ int loadfile(const char *file, int preloader) {
             for( zip *z = zip_open(file, "rb"); z; zip_close(z), z = 0 )
             for( unsigned i = 0 ; i < zip_count(z); ++i ) {
                 if( file_is_supported(zip_name(z,i), GAMES_ONLY) ) {
-                    free(last_load);
-                    file = last_load = strdup(zip_name(z,i));
+                    free(last_title);
+                    file = last_title = strdup(zip_name(z,i));
                     break;
                 }
             }
@@ -609,8 +590,8 @@ int loadfile(const char *file, int preloader) {
             for( rar *r = rar_open(file, "rb"); r; rar_close(r), r = 0 )
             for( unsigned i = 0 ; i < rar_count(r); ++i ) {
                 if( file_is_supported(rar_name(r,i), GAMES_ONLY) ) {
-                    free(last_load);
-                    file = last_load = strdup(rar_name(r,i));
+                    free(last_title);
+                    file = last_title = strdup(rar_name(r,i));
                     break;
                 }
             }
@@ -651,7 +632,7 @@ int loadfile(const char *file, int preloader) {
     const char *extfound = ext ? strstri(extensions, ext) : NULL;
     if( !extfound ) {
         // regular load
-        ok = loadbin(ptr, size, preloader);
+        ok = loadbin(ptr, size, preloader, model_);
     } else {
         // betadisk load
         printf("found ext: %d\n", (int)(extfound - extensions) );
@@ -673,15 +654,13 @@ int loadfile(const char *file, int preloader) {
         unlink("spectral.$$$");
 
         if( ok ) {
-            ZX_PENTAGON = 1;
-            ZX = 128;
-            boot(ZX, KEEP_MEDIA);
+            boot(model_ = 128|1, KEEP_MEDIA);
 
             // type RUN+ENTER if bootable disk found
             extern window *app;
-            if( !window_pressed(app, TK_SHIFT) )
+            if( !key_pressed( TK_SHIFT) )
             if( memmem(ptr, size, "boot    B", 9) ) {
-                loadbin(ldtrdos, ldtrdos_length, 0);
+                loadbin(ldtrdos, ldtrdos_length, 0, model_);
             }
         }
     }
@@ -699,6 +678,14 @@ int loadfile(const char *file, int preloader) {
     }
 
     return ok;
+}
+
+int reload(int model) {
+    if( !loadfile(last_load,1,model) ) {
+        bool zxdb_load(const char *id_, int ZX_MODEL);
+        return zxdb_load(last_load, model);
+    }
+    return 1;
 }
 
 
@@ -736,8 +723,6 @@ void port_0x00fe(byte value) {
     // border color
     ZXBorderColor = (value & 0x07);
 
-    border[border_num++] = (ZXBorderColor << 24) | (ticks - border_org);
-
     // speaker
     spk = value;
 }
@@ -749,10 +734,6 @@ void port_0x7ffd(byte value) {
         // check bit 2-0: RAM0/7 -> 0xc000-0xffff
         MEMw[3]=MEMr[3]=RAM_BANK(value&7);
 
-        //16/48/128/+2: pages 1,3,5,7 are contended (1), 0,2,4,6 not contended (0) -> so mask is 0001 (1)
-        //+2A/+3:       pages 4,5,6,7 are contended (1), 0,1,2,3 not contended (0) -> so mask is 0100 (4)
-//MEMc[3]=value & contended_mask;
-
         //128:    check bit 4 : rom selection (ROM0/1 -> 0x0000-0x3FFF)
         //+2A/+3: check high bit of rom selection too (same as offset ROM selection to 0x8000) 1x0 101
         MEMr[0]=ROM_BANK((value & 16 ? 1 : 0) | ((page2a & 5) == 4 ? 2 : 0));
@@ -761,41 +742,46 @@ void port_0x7ffd(byte value) {
     }
 }
 
+void ZXJoystick(int *j, int up, int down, int left, int right, int fire) {
+    if(left)  ZXKey(j[0]);
+    if(right) ZXKey(j[1]);
+    if(up)    ZXKey(j[2]);
+    if(down)  ZXKey(j[3]);
+    if(fire)  ZXKey(j[4]);
+}
+
 void ZXJoysticks(int up, int down, int left, int right, int fire) {
-    bool within_basic = PC(cpu) < 0x4000; // && (GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() || GET_MAPPED_ROMBANK() == GET_EDITOR_ROMBANK());
-
-    // kempston/i2l + fuller, then either sinclair1 or sinclair2 or cursor/protek/agf
-    int joy[][6] = {
-        { 0 },
-        { ZX_1,ZX_2,ZX_4,ZX_3,ZX_5,ZX_5 },
-        { ZX_6,ZX_7,ZX_9,ZX_8,ZX_0,ZX_0 },
-        { ZX_5|0x80,ZX_8|0x80,ZX_7|0x80,ZX_6|0x80,ZX_0|0x80,ZX_0|0x80 },
-        //OPQAM/SP,OP1QM/SP,KLAZM/SP,ZXPL0/SP,QABNM/SP,QZIPM/SP,1ZIPM/SP,670OM/SP,QWOKC/SP
-        { ZX_O,ZX_P,ZX_Q,ZX_A,ZX_M,ZX_SPACE },
-        { ZX_O,ZX_P,ZX_1,ZX_Q,ZX_M,ZX_SPACE },
-        { ZX_K,ZX_L,ZX_A,ZX_Z,ZX_M,ZX_SPACE },
-        { ZX_Z,ZX_X,ZX_P,ZX_L,ZX_0,ZX_SPACE },
-        { ZX_B,ZX_N,ZX_Q,ZX_A,ZX_M,ZX_SPACE },
-        { ZX_I,ZX_P,ZX_Q,ZX_Z,ZX_M,ZX_SPACE },
-        { ZX_I,ZX_P,ZX_1,ZX_Z,ZX_M,ZX_SPACE },
-        { ZX_6,ZX_7,ZX_0,ZX_O,ZX_M,ZX_SPACE },
-        { ZX_Q,ZX_W,ZX_O,ZX_K,ZX_C,ZX_SPACE },
-    }, *j = joy[ZX_JOYSTICK];
-
-    // disallow cursor joystick. except while in BASIC
+    // use SHIFT with cursor keys only under BASIC. ie, do not press SHIFT during games.
     // reasoning: conflicts with many games (Gauntlet, Emlyn Hughes, etc) that use SHIFT key actively
-    if( ZX_JOYSTICK == 3 && !within_basic ) {
-        j = joy[0];
-    }
+    bool basic = PC(cpu) < 0x4000; // && (GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() || GET_MAPPED_ROMBANK() == GET_EDITOR_ROMBANK());
 
-    kempston=0; fuller=0xff;
-    if( ZX_JOYSTICK ) {
-    if(left)  { kempston|=2;  fuller&=0xFF-4;   ZXKey(j[0] & 0x7f); if(j[0] & 0x80) ZXKey(ZX_SHIFT); }
-    if(right) { kempston|=1;  fuller&=0xFF-8;   ZXKey(j[1] & 0x7f); if(j[1] & 0x80) ZXKey(ZX_SHIFT); }
-    if(up)    { kempston|=8;  fuller&=0xFF-1;   ZXKey(j[2] & 0x7f); if(j[2] & 0x80) ZXKey(ZX_SHIFT); }
-    if(down)  { kempston|=4;  fuller&=0xFF-2;   ZXKey(j[3] & 0x7f); if(j[3] & 0x80) ZXKey(ZX_SHIFT); }
-    if(fire)  { kempston|=16; fuller&=0xFF-128; ZXKey(j[4] & 0x7f); if(j[4] & 0x80) ZXKey(ZX_SHIFT); }
-    }
+    // joystick as keyboard mappings
+    int joy[][6] = {
+        // custom
+        { ZX_O,ZX_P,ZX_Q,ZX_A,ZX_M,ZX_SPACE }, // OPQAM/SP
+        { ZX_O,ZX_P,ZX_1,ZX_Q,ZX_M,ZX_SPACE }, // OP1QM/SP
+        { ZX_K,ZX_L,ZX_A,ZX_Z,ZX_M,ZX_SPACE }, // KLAZM/SP
+        { ZX_Z,ZX_X,ZX_P,ZX_L,ZX_0,ZX_SPACE }, // ZXPL0/SP
+        { ZX_B,ZX_N,ZX_Q,ZX_A,ZX_M,ZX_SPACE }, // BNQAM/SP
+        { ZX_I,ZX_P,ZX_Q,ZX_Z,ZX_M,ZX_SPACE }, // IPQZM/SP
+        { ZX_I,ZX_P,ZX_1,ZX_Z,ZX_M,ZX_SPACE }, // IP1ZM/SP
+        { ZX_6,ZX_7,ZX_0,ZX_O,ZX_M,ZX_SPACE }, // 670OM/SP
+        { ZX_Q,ZX_W,ZX_O,ZX_K,ZX_C,ZX_SPACE }, // QWOKC/SP
+        // common
+        { ZX_6,ZX_7,ZX_9,ZX_8,ZX_0,ZX_0 }, // sinclair2
+        { ZX_1,ZX_2,ZX_4,ZX_3,ZX_5,ZX_5 }, // sinclair1
+        { ZX_5,ZX_8,ZX_7,ZX_6,ZX_0,ZX_0 }, // cursor
+    }, *user = joy[ZX_JOYSTICK>>8];
+
+    if( ZX_JOYSTICK > 255) ZXJoystick(user, up, down, left, right, fire);
+    if( ZX_JOYSTICK &  8 ) ZXJoystick(joy[countof(joy)-3], up, down, left, right, fire);
+    if( ZX_JOYSTICK &  4 ) ZXJoystick(joy[countof(joy)-2], up, down, left, right, fire);
+    if( ZX_JOYSTICK &  1 ) ZXJoystick(joy[countof(joy)-1], up, down, left, right, fire);
+    if( ZX_JOYSTICK &  1 ) if(left|right|up|down) if( basic ) ZXKey(ZX_SHIFT);
+
+    kempston = ZX_JOYSTICK & 2 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
+    kempston2 = ZX_JOYSTICK & 32 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
+    fuller = (ZX_JOYSTICK & 16 ? (fire<<7)|(right<<3)|(left<<2)|(down<<1)|up : 0) ^ 255;
 }
 
 // fdc
@@ -887,7 +873,6 @@ void config(int ZX) {
         issue2=1;
         page128=32; // -1
         page2a=128; // -1
-        //contended_mask=1;
 
         ZX_TS = 69888;
         ZX_FREQ = 3500000;
@@ -918,58 +903,7 @@ void config(int ZX) {
         port_0x1ffd(page2a);
     }
 
-    // floating bus [16,48,128,+2]
-    //
-    // [ref] https://sinclair.wiki.zxnet.co.uk/wiki/Floating_bus
-    // [ref] https://github.com/jsmolina/z88dk-tutorial-sp1/blob/master/floating-bus.md
-    // [ref] https://softspectrum48.weebly.com/notes/category/floating-bus
-    //
-    // note: for +2A/+3 models, it works this way:
-    // While the effect is no longer present on unused ports, it is still evident when reading from ports
-    // which match a particular addressing pattern, expressed as (1+n*4), or in binary, 0000 xxxx xxxx xx01.
-    // This is only evident when the memory paging ports are unlocked, otherwise they will always return FF.
-    // In detail:
-    // 1. It is only found on ports that follow the pattern (1 + (4 * n) && n < 0x1000) (that is, ports 1, 5, 9, 13 . . . 4093).
-    // 2. The bus always returns 0xFF if bit 5 of port 32765 is set (i.e. paging is disabled), so it won’t work in 48K mode.
-    // 3. Otherwise, the value returned is the value currently read by the ULA ORed with 1 (i.e. Bit 0 is always set).
-    // 4. During idling intervals (i.e. when the ULA is drawing the border or in between fetching the bitmap/attribute byte), the bus latches onto the last value that was written to, or read from, contended memory, and not strictly 0xFF. This is crucial to keep in mind.
-
-    // @fixme: for floatspy.tap to be stable
-    // IM2 t_offs needs to be 25->22 (128K), 29->30 (48K)
-
-    do_once
-    for( int model = 48; model <= 128; model += 80 ) {
-
-        if( model == 128 )
-        memset(floating_bus = floating128, 0, sizeof(floating128));
-        else
-        memset(floating_bus = floating48, 0, sizeof(floating48));
-
-        enum { TIMING_48  = 14340 }; // others: 14338 (faq), ramsoft: 14347(+9)
-        enum { TIMING_128 = 14366 }; // others: 14364 (faq), ramsoft: 14368(+4)
-        int timing = model < 128 ? TIMING_48 : TIMING_128, inc = model < 128 ? 96 : 100;
-        int cycles = model < 128 ? 69888 : 70908;
-        int adjust = model < 128 ? 0 : 0; // adjust
-
-        for( int k = timing + adjust, y = 0; y < 192; ++y, k += inc ) {
-            int SCANLINE = ((((((y)%64) & 0x38) >> 3 | (((y)%64) & 0x07) << 3) + ((y)/64) * 64) << 5);
-            int pixel = 0x4000 + SCANLINE, attr = 0x5800 + 32*(y/8);
-
-            for( int x = 0; x < 16; ++x ) { //16*8=128 T states per line (main screen)
-                floating_bus[k++]=pixel++; // = 1;
-                floating_bus[k++]=attr++;  // = 2;
-                floating_bus[k++]=pixel++; // = 3;
-                floating_bus[k++]=attr++;  // = 4;
-                floating_bus[k++]=0x0000;  // = 5;
-                floating_bus[k++]=0x0000;  // = 6;
-                floating_bus[k++]=0x0000;  // = 7;
-                floating_bus[k++]=0x0000;  // = 8;
-            }
-        }
-    }
-
-    floating_bus = ZX <= 48 ? floating48 : ZX <= 200 ? floating128 : NULL;
-    if( ZX_PENTAGON ) floating_bus = NULL;
+    floating_bus = NULL;
 }
 
 
@@ -1084,7 +1018,7 @@ byte inport_0xfffd(void) {
     return r[*v] & ay_registers_mask[*v];
 }
 
-uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
+uint64_t transact(uint64_t pins) {
 
 #if DEV
     if( cpu.step == 0 ) {
@@ -1169,16 +1103,7 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
         }
     }
 
-#if NEWCORE
-    sys_audio();
     return pins;
-#endif
-
-    for(int i = 0; i < num_ticks; ++i)
-    sys_audio();
-
-    // vsync
-    return pins | (zx_int ? zx_int = 0, Z80_INT : 0);
 }
 
 
@@ -1188,7 +1113,6 @@ void frame_new() {
     if( 1 ) {
         // vsync (once per frame)
         zx_int = 1;
-        //border_num = 0;
     }
     if( tape_inserted() ) {
         // auto-plays tape
@@ -1228,45 +1152,6 @@ void frame_new() {
         autoplay = 0;
         autostop = 0;
     }
-}
-
-void run(unsigned TS) {
-    // if(TS<0)return;
-
-#if NEWCORE
-
-    for( int tick = 0; tick < TS; ++tick) {
-
-        if (zx_int /*  && cpu.step == 2 && IFF1(cpu) */ ) { // adjust
-            zx_int = 0;
-
-            // request vblank interrupt
-            z80_interrupt(&cpu, 1);
-
-            // hold the INT pin for 32 ticks
-            int_counter = 32; // - (4 - (tick & 3)); // 23?
-
-            RZX_tick();
-        }
-        
-        // clear INT pin after 32 ticks
-        if (int_counter > 0) {
-            if(!--int_counter) z80_interrupt(&cpu, 0);
-        }
-
-        pins = z80_tick(&cpu, pins);
-        ++ticks;
-        tape_ticks += !!mic_on;
-
-        pins = tick1(1,pins,0);
-    }
-#else
-    z80_exec(&cpu, TS);
-    ticks += TS;
-    tape_ticks += !!mic_on * TS;
-#endif
-
-    fdc_tick(TS);
 }
 
 void sys_audio() {
@@ -1375,7 +1260,8 @@ void logport(word port, byte value, int is_out) {
         || port == 0xfbdf // kempston mouse
         || port == 0xfadf // kempston mouse
 
-        || port == 0x00df // kempston joystick
+        || port == 0x00df // kempston joystick (31)
+        || port == 0x00c7 // kempston joystick (55)
 
         ||(port == 0x007f && !ZX_PENTAGON/*!beta128*/ ) // fuller joystick
         ||(port == 0x005f && !ZX_PENTAGON/*!beta128*/ ) // fuller ay
@@ -1440,12 +1326,8 @@ void outport(word port, byte value) {
     }
 
 
-#if 0
-    if(contended_mask & 4) //if +2a or +3 then apply (fixes fairlight games)
-#else
-    // +2a/+3
+    // +2a/+3 (fixes fairlight games)
     if( ZX >= 210 )
-#endif
     {
         //if (port & (0xFFFF^0x1FFD)) { port_0x1ffd(value); return; }
         //if (port & (0xFFFF^0x3FFD)) { port_0x3ffd(value); return; }
@@ -1651,12 +1533,15 @@ byte inport_(word port) {
     }
 
     // kempston port (31) @fixme: also seen mappings on port 55 and 95 (?)
-    if( kempston_mouse != 7 ) {
+    if( kempston_mouse != 3 ) { // was: 7 before. arkanoid does not use Y.
+        // kempston joystick2 (55)
+        if(!(port & (0xFF^55))) return kempston2;
+
         // gunstick (bestial warrior)
         if(ZX_GUNSTICK)
         if(!(port & (0xFF^0xDF))) return /*puts("gunstick kempston"),*/ gunstick(0xFF);
 
-        // kempston joystick
+        // kempston joystick1 (31) (255^31-1)
         if(!(port & (0xFF^0xDF))) return kempston; //bit 5 low = reading kempston (as told pera putnik)
         //if(!(port & 0xE0)) return kempston;          //bit 7,6,5 low = reading kempston (as floooh)
     }
@@ -1880,17 +1765,16 @@ byte inport_(word port) {
     // - Cobra (original release only, the Hit Squad re-release does not use the floating bus)
     // - Sidewize
     // - Short Circuit
-    if ((port & 0xFF) == 0xFF) {
-        if( !floating_bus ) return 0xFF;
-        unsigned tstate = ticks % (ZX < 128 ? 69888 : 70908);
-        unsigned value = floating_bus[tstate] ? READ8(floating_bus[tstate]) : 0xFF;
-        // debug: value = floating_bus[tstate] ? floating_bus[tstate] : 0xFF ; 
-        // debug: printf("%d %d\n", tstate, value); // adjust
-        return value;
-    } // 48: 56 << 8 + 3..6 (0) = 14339..45 (vs 14336) // 128: 56 << 8 + 30 (28) = 14366 (vs 14364)
-
-    return 0xFF;
-    // return port & 1 ? 0xFF : 0x00;
+    if( ZX >= 210 ) { // if +2A/+3 case (see: http://sky.relative-path.com/zx/floating_bus.html)
+        if( (1 + (4 * port) && port < 0x1000) ) { // if in ports 1, 5, 9, 13 ... 4093
+            if( !(page128 & (1<<5)) ) { // if paging is enabled
+                if( floating_bus ) return *floating_bus | 1; // the value currently read by the ULA ORed with 1
+                else return 0xFF; // @fixme: return last value that was written to, or read from, contended memory, and not strictly 0xFF
+            }
+        }
+        return 0xFF;
+    }
+    return floating_bus ? *floating_bus : 0xFF;
 }
 
 byte inport(word port) {
@@ -1934,11 +1818,9 @@ struct quicksave {
     // memory
     byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
     byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
-    int vram_contended;
-    int vram_accesses;
 
 #if FULL_QUICKSAVES
-    unsigned short *floating_bus;
+    byte *floating_bus;
 
     byte dum[16384];    // dummy page
     byte rom[16384*4];  // +3
@@ -1953,7 +1835,7 @@ struct quicksave {
     int keymap[5][5];
     int issue2;
     // joysticks
-    byte kempston,fuller;
+    byte kempston,kempston2,fuller;
     // mouse
     byte kempston_mouse;
     // ear
@@ -2037,12 +1919,8 @@ void* quicksave(unsigned slot) {
     // memory
     for( int i = 0; i < 4; ++i ) c->MEMr[i] = MEMr[i];
     for( int i = 0; i < 4; ++i ) c->MEMw[i] = MEMw[i];
-    c->vram_contended = vram_contended;
-    c->vram_accesses = vram_accesses;
 #if FULL_QUICKSAVES
-//  byte contended[70908];
-//  byte floating_bus[70908];
-    c->floating_bus = floating_bus;
+    c->floating_bus = NULL; // floating_bus;
 //    memcpy(c->dum, dum, 16384);
 //    memcpy(c->rom, rom, 16384*4);
     memcpy(c->mem, mem, 16384*rampages); //16);
@@ -2056,6 +1934,7 @@ void* quicksave(unsigned slot) {
     c->issue2 = issue2;
     // joysticks
     c->kempston = kempston;
+    c->kempston2 = kempston2;
     c->fuller = fuller;
     // mouse
     c->kempston_mouse = kempston_mouse;
@@ -2147,10 +2026,7 @@ void* quickload(unsigned slot) {
     // memory
     for( int i = 0; i < 4; ++i ) MEMr[i] = c->MEMr[i];
     for( int i = 0; i < 4; ++i ) MEMw[i] = c->MEMw[i];
-    vram_contended = c->vram_contended;
-    vram_accesses = c->vram_accesses;
 #if FULL_QUICKSAVES
-//  byte contended[70908];
     floating_bus = c->floating_bus;
 //  memcpy(dum, c->dum, 16384);
 //  memcpy(rom, c->rom, 16384*4);
@@ -2165,6 +2041,7 @@ void* quickload(unsigned slot) {
     issue2 = c->issue2;
     // joysticks
     kempston = c->kempston;
+    kempston2 = c->kempston2;
     fuller = c->fuller;
     // mouse
     kempston_mouse = c->kempston_mouse;
@@ -2300,6 +2177,7 @@ void reset(unsigned FLAGS) {
     mixer_reset();
 
     ula_reset();
+    palette_use(ZX_PALETTE, ZX_PALETTE ? 0 : 1);
 
     mouse_clip(0);
     mouse_cursor(1);
@@ -2318,19 +2196,12 @@ void reset(unsigned FLAGS) {
         Reset1793(&wd,fdd,WD1793_KEEP);
     }
 
-    border_num = 0;
-    border_org = ticks;
-    border[border_num] = 0;
 }
 
-void boot(int model, unsigned FLAGS) {
-    if(model) ZX = model;
-
+void boot0(int model, unsigned FLAGS) {
     dum = (char*)realloc(dum, 16384);    // dummy page
     rom = (char*)realloc(rom, 16384*4);  // +3
     mem = (char*)realloc(mem, 16384*16); // scorpion
-
-    if( ZX != 128 ) ZX_PENTAGON = 0;
 
     config(ZX);
 
@@ -2392,4 +2263,13 @@ void boot(int model, unsigned FLAGS) {
     z80_quickreset(0);
 
 //    memset(mem, 0x00, 16384*16);
+}
+
+void boot(int model, unsigned FLAGS) {
+    if( model ) ZX = model & 0x1FE, ZX_PENTAGON = model & 1;
+
+    boot0(ZX, FLAGS);
+
+    // hack: force next cycle if something went wrong. @fixme: investigate why
+    if( model & 1 ) if(!ZX_PENTAGON) ZX_PENTAGON = 1, rom_restore();
 }

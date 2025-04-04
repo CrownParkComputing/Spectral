@@ -236,7 +236,7 @@ int z80_guess(const byte *source_, int len) {
     // common extended values (v2+v3)
     /**/ if(buffer[34]== 7) return buffer[37]&0x80 ? 210 : 300; //OK!
     else if(buffer[34]== 8) return buffer[37]&0x80 ? 210 : 300; //OK!
-    else if(buffer[34]== 9) return -128; // Pentagon 128k
+    else if(buffer[34]== 9) return 128|1; // Pentagon 128k
     else if(buffer[34]==10) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
     else if(buffer[34]==11) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
     else if(buffer[34]==12) return 200; //OK!
@@ -474,7 +474,7 @@ int szx_load(const byte *src, int len) {
 
     src += 4;
 
-    int models[17] = { 16,48,128,200,210,300,300,-128,0*2048,0*2068,0*'scor',0*'se',0*2068,0*512,0*1024,48,128};
+    int models[17] = { 16,48,128,200,210,300,300,128|1,0*2048,0*2068,0*'scor',0*'se',0*2068,0*512,0*1024,48,128};
 
     byte major = *src++;
     byte minor = *src++;
@@ -557,12 +557,14 @@ int szx_load(const byte *src, int len) {
 }
 
 int guess(const byte *ptr, int size) { // guess required model type for given data
+    int current = ZX|ZX_PENTAGON;
+
     // ay first
     if( size > 0x08 &&(!memcmp(ptr, "ZXAYEMUL", 8) )) return 128;
 
     // szx
     if( size > 0x08 &&!(memcmp(ptr, "ZXST", 4))) {
-        int models[17] = { 16,48,128,200,210,300,300,-128,0,0,0,0,0,0,0,48,128};
+        int models[17] = { 16,48,128,200,210,300,300,128|1,0,0,0,0,0,0,0,48,128};
         return ptr[7] < 17 ? models[ptr[7]] : 0;
     }
 
@@ -573,10 +575,10 @@ int guess(const byte *ptr, int size) { // guess required model type for given da
     if( size > 0x08 &&(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) ) return 300;
 
     // tapes first
-    if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) return ZX;
-    if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) return ZX;
-    if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return ZX;
-    if( size > 0x04 && !memcmp(ptr, "PZXT", 4) ) return ZX;
+    if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) return current;
+    if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) return current;
+    if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return current;
+    if( size > 0x04 && !memcmp(ptr, "PZXT", 4) ) return current;
 
     // headerless fixed-size formats now, sorted by ascending file size.
     if( size == 6912 ) return 48;
@@ -584,13 +586,13 @@ int guess(const byte *ptr, int size) { // guess required model type for given da
     if( size == 32768 ) return 128;
     if( size == 65536 ) return 210;
     if( size == 49179 ) return 48;
-    if( size == 131103 ) return 128;
+    if( size == 131103 ) return 128; // @fixme: infer ZX_PENTAGON
     if( size == 147487 ) return 128;
 
     // at this point file is too large to be a snapshot. must be a disk instead (trd,scl,fdi,mgt,etc)
-    if( size > 147487 ) return -128;
+    if( size > 147487 ) return 128|1;
 
     // headerless variable-size formats now
-    if( *ptr == 'N' ) return ZX;
-    return size > 87 ? z80_guess(ptr, size) : ZX;
+    if( *ptr == 'N' ) return current;
+    return size > 87 ? z80_guess(ptr, size) : current;
 }

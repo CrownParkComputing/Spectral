@@ -42,7 +42,7 @@ int strmatchi(const char *s, const char *wildcard) {
 
 // convert a key into a bucket [0..N]
 #define NN 28
-#define KEYHASH(k) (isalpha(0[k]) ? (unsigned)toupper(0[k]) % 26 : 26u + (0[k] == '#'))
+#define KEYHASH(k) (isalpha(0[romanize(k)]) ? (unsigned)toupper(0[romanize(k)]) % 26 : 26u + (0[k] == '#'))
 // utils
 #ifndef KEYCMP
 #define KEYCMP   strmatchi // !strcmp

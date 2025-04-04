@@ -30,7 +30,7 @@ char **tigrDropFiles(Tigr *app, int *x, int *y) {
     // prepare null-terminated list[] of strings
     if( m_droppedCount ) {
         // reallocate list. make room for terminator too
-        m_droppedList = realloc(m_droppedList, sizeof(char*) * (m_droppedCount+1) );
+        m_droppedList = (char**)realloc(m_droppedList, sizeof(char*) * (m_droppedCount+1) );
 
         // populate list
         for( int i = 0, j = 0; m_droppedItem && m_droppedItem[i]; ++i) {
@@ -100,7 +100,7 @@ BOOL performDragOperation(id self, SEL sel, id sender) {
         }
 
         int len = [list length] > 0 ? strlen(list.UTF8String) : 0;
-        m_droppedItem = realloc(m_droppedItem, len + 1);
+        m_droppedItem = (char*)realloc(m_droppedItem, len + 1);
         len[(char*)memcpy(m_droppedItem, len ? list.UTF8String : "", len)] = '\0';
 
         return YES;
@@ -155,7 +155,7 @@ void tigrHandleDragNDropEvent(HWND hWnd, HDROP drop) {
         UINT length = DragQueryFileW(drop, i, NULL, MAX_PATH);
         bytes += (length + 1) * 6;
     }
-    m_droppedItem = realloc(m_droppedItem, bytes);
+    m_droppedItem = (char*)realloc(m_droppedItem, bytes);
 
     // concatenate utf8 strings, \n separated
     char *ptr = m_droppedItem;
@@ -285,7 +285,7 @@ int tigrHandleDropEvent(TigrInternal *app, XEvent e) {
             for( int i = 0; data[i]; ++i ) m_droppedCount += data[i] == '\n';
             m_droppedCount += !m_droppedCount;
             // copy item. do not use strdup(). we only use realloc() in this source file
-            strcpy(m_droppedItem = realloc(m_droppedItem, strlen(data) + 1), data);
+            strcpy(m_droppedItem = (char*)realloc(m_droppedItem, strlen(data) + 1), data);
         }
 
         // we must remove the request we made earlier

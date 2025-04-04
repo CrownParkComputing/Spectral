@@ -94,7 +94,7 @@ main(int argc, char *argv[])
     fprintf(f_output, "// Copyright (C) 1982-1987 Amstrad\n");
     fprintf(f_output, "// Amstrad Plc. grants permision to use and distribute the Spectrum ROMs with a emulator for free.\n\n");
 
-    fprintf(f_output, "const char %s[] = {", ident, file_size);
+    fprintf(f_output, "const unsigned char %s[] = {", ident, file_size);
     for (i = 0; i < file_size; ++i) {
         if (need_comma)
             fprintf(f_output, ",");

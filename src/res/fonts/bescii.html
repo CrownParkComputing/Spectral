@@ -64,12 +64,19 @@
   }
 
   h1,
-  h2 {
-    font-size: 1.5em;
-    font-weight: 600;
-    text-align: center
+  h2,
+  h3 {
+    font-weight: 400;
+    text-align: center;
+    font-family: var(--font), monospace;
   }
-
+  h1 {
+    font-size: 1.8rem;
+  }
+  h2 {
+    font-size: 1.4rem;
+    color: color-mix(in srgb, var(--text) 90%, var(--page) 100%);
+  }
   a {
     text-decoration: none;
     color: var(--link)
@@ -137,7 +144,21 @@
     margin-bottom: 0;
     text-align: center;
   }
-
+  .pangrams {
+    width: 100%;
+    max-width: 75rem;
+    margin: 1rem auto;
+    box-sizing: border-box;
+    padding: 0 1.5rem;
+  }
+  .pangram {
+    margin: 1.5rem 0 0;
+    font-family: var(--font), monospace;
+    font-weight: 400;
+  }
+  .lang-iso {
+    color: color-mix(in srgb, var(--text) 50%, var(--page) 100%)
+  }
   @media print {
     body {
       background: 0 0;
@@ -145,22 +166,18 @@
       border: 0;
       min-height: 0
     }
-
     body,
     dt,
     footer {
       color: #000
     }
-
     tbody {
       border-top: 1px solid #000
     }
-
     td {
       border: .5px solid #000;
       color: #000
     }
-
     th {
       padding-left: 0
     }
@@ -173,7 +190,18 @@
     <h1 class="title">BESCII Glyphs Reference</h1>
     <p class="description">The following charts show the Unicode mappings for the glyphs included in <strong>Bescii</strong>.</p>
   </header>
+  <section class="pangrams">
+    <h2>Pangrams</h2>
+    <p lang="en" class="pangram"><span class="lang-iso">EN</span> The quick brown fox jumps over the lazy dog.</p>
+    <p lang="es" class="pangram"><span class="lang-iso">ES</span> Bebí whisky porque extrañé mi loca juventud fugaz.</p>
+    <p lang="de" class="pangram"><span class="lang-iso">DE</span> Victor jagt zwölf Boxkämpfer quer über den großen Sylter Deich.</p>
+    <p lang="ja" class="pangram"><span class="lang-iso">JA</span> いろはにほへとちりぬるをわかよたれそつねならむうゐのおくやまけふこえてあさきゆめみしゑひもせす</p>
+    <p lang="ru" class="pangram"><span class="lang-iso">RU</span> Съешь ещё этих мягких французских булок, да выпей же чаю.</p>
+    <p lang="he" class="pangram"><span class="lang-iso">HE</span> דג סקרן שט בים מאוכזב ולפתע מצא לו חברה </p>
+    <p lang="sk" class="pangram"><span class="lang-iso">SK</span> Kŕdeľ šťastných ďatľov učí pri ústí Váhu mĺkveho koňa obhrýzať kôru a žrať čerstvé mäso.</p>
+  </section>
   <main>
+    <h2>Bescii Mono</h2>
     <table id="t">
       <tbody>
         <tr>
@@ -385,7 +413,7 @@
           <td class="c">î</td>
           <td class="c">ï</td>
         </tr>
-        <tr class="b">
+        <tr>
           <th>00F0</th>
           <td class="c">ð</td>
           <td class="c">ñ</td>
@@ -404,7 +432,64 @@
           <td class="c">þ</td>
           <td class="c">ÿ</td>
         </tr>
-        <tr class="b">
+        <tr>
+          <th>0100</th>
+          <td class="c">Ā</td>
+          <td class="c">ā</td>
+          <td class="c">Ă</td>
+          <td class="c">ă</td>
+          <td class="c">Ą</td>
+          <td class="c">ą</td>
+          <td class="c">Ć</td>
+          <td class="c">ć</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="c">Č</td>
+          <td class="c">č</td>
+          <td class="c">Ď</td>
+          <td class="c">ď</td>
+        </tr>
+        <tr>
+          <th>0110</th>
+          <td class="c">Đ</td>
+          <td class="c">đ</td>
+          <td class="c">Ē</td>
+          <td class="c">ē</td>
+          <td></td>
+          <td></td>
+          <td class="c">Ė</td>
+          <td class="c">ė</td>
+          <td class="c">Ę</td>
+          <td class="c">ę</td>
+          <td class="c">Ě</td>
+          <td class="c">ě</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <th>0120</th>
+          <td></td>
+          <td></td>
+          <td class="c">Ģ</td>
+          <td class="c">ģ</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="c">Ī</td>
+          <td class="c">ī</td>
+          <td></td>
+          <td></td>
+          <td class="c">Į</td>
+          <td class="c">į</td>
+        </tr>
+        <tr>
           <th>0130</th>
           <td></td>
           <td class="c">ı</td>
@@ -412,53 +497,91 @@
           <td></td>
           <td></td>
           <td></td>
+          <td class="c">Ķ</td>
+          <td class="c">ķ</td>
           <td></td>
+          <td class="c">Ĺ</td>
+          <td class="c">ĺ</td>
+          <td class="c">Ļ</td>
+          <td class="c">ļ</td>
+          <td class="c">Ľ</td>
+          <td class="c">ľ</td>
           <td></td>
+        </tr>
+        <tr>
+          <th>0140</th>
           <td></td>
+          <td class="c">Ł</td>
+          <td class="c">ł</td>
+          <td class="c">Ń</td>
+          <td class="c">ń</td>
+          <td class="c">Ņ</td>
+          <td class="c">ņ</td>
+          <td class="c">Ň</td>
+          <td class="c">ň</td>
           <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">Ŋ</td>
+          <td class="c">ŋ</td>
+          <td class="c">Ō</td>
+          <td class="c">ō</td>
           <td></td>
           <td></td>
         </tr>
-        <tr class="b">
+        <tr>
           <th>0150</th>
-          <td></td>
-          <td></td>
+          <td class="c">Ő</td>
+          <td class="c">ő</td>
           <td class="c">Œ</td>
           <td class="c">œ</td>
+          <td class="c">Ŕ</td>
+          <td class="c">ŕ</td>
+          <td class="c">Ŗ</td>
+          <td class="c">ŗ</td>
+          <td class="c">Ř</td>
+          <td class="c">ř</td>
+          <td class="c">Ś</td>
+          <td class="c">ś</td>
           <td></td>
           <td></td>
+          <td class="c">Ş</td>
+          <td class="c">ş</td>
+        </tr>
+        <tr>
+          <th>0160</th>
+          <td class="c">Š</td>
+          <td class="c">š</td>
+          <td class="c">Ţ</td>
+          <td class="c">ţ</td>
+          <td class="c">Ť</td>
+          <td class="c">ť</td>
+          <td class="c">Ŧ</td>
+          <td class="c">ŧ</td>
           <td></td>
           <td></td>
+          <td class="c">Ū</td>
+          <td class="c">ū</td>
           <td></td>
           <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">Ů</td>
+          <td class="c">ů</td>
         </tr>
         <tr class="b">
           <th>0170</th>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">Ű</td>
+          <td class="c">ű</td>
+          <td class="c">Ų</td>
+          <td class="c">ų</td>
           <td class="c">Ŵ</td>
           <td class="c">ŵ</td>
           <td class="c">Ŷ</td>
           <td class="c">ŷ</td>
           <td class="c">Ÿ</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">Ź</td>
+          <td class="c">ź</td>
+          <td class="c">Ż</td>
+          <td class="c">ż</td>
+          <td class="c">Ž</td>
+          <td class="c">ž</td>
           <td></td>
         </tr>
         <tr class="b">
@@ -2210,6 +2333,842 @@
           <td></td>
         </tr>
         <tr>
+          <th>1CC00</th>
+          <td class="c">𜰀</td>
+          <td class="c">𜰁</td>
+          <td class="c">𜰂</td>
+          <td class="c">𜰃</td>
+          <td class="c">𜰄</td>
+          <td class="c">𜰅</td>
+          <td class="c">𜰆</td>
+          <td class="c">𜰇</td>
+          <td class="c">𜰈</td>
+          <td class="c">𜰉</td>
+          <td class="c">𜰊</td>
+          <td class="c">𜰋</td>
+          <td class="c">𜰌</td>
+          <td class="c">𜰍</td>
+          <td class="c">𜰎</td>
+          <td class="c">𜰏</td>
+        </tr>
+        <tr>
+          <th>1CC10</th>
+          <td class="c">𜰐</td>
+          <td class="c">𜰑</td>
+          <td class="c">𜰒</td>
+          <td class="c">𜰓</td>
+          <td class="c">𜰔</td>
+          <td class="c">𜰕</td>
+          <td class="c">𜰖</td>
+          <td class="c">𜰗</td>
+          <td class="c">𜰘</td>
+          <td class="c">𜰙</td>
+          <td class="c">𜰚</td>
+          <td class="c">𜰛</td>
+          <td class="c">𜰜</td>
+          <td class="c">𜰝</td>
+          <td class="c">𜰞</td>
+          <td class="c">𜰟</td>
+        </tr>
+        <tr>
+          <th>1CC20</th>
+          <td class="c">𜰠</td>
+          <td class="c">𜰡</td>
+          <td class="c">𜰢</td>
+          <td class="c">𜰣</td>
+          <td class="c">𜰤</td>
+          <td class="c">𜰥</td>
+          <td class="c">𜰦</td>
+          <td class="c">𜰧</td>
+          <td class="c">𜰨</td>
+          <td class="c">𜰩</td>
+          <td class="c">𜰪</td>
+          <td class="c">𜰫</td>
+          <td class="c">𜰬</td>
+          <td class="c">𜰭</td>
+          <td class="c">𜰮</td>
+          <td class="c">𜰯</td>
+        </tr>
+        <tr>
+          <th>1CC30</th>
+          <td class="c">𜰰</td>
+          <td class="c">𜰱</td>
+          <td class="c">𜰲</td>
+          <td class="c">𜰳</td>
+          <td class="c">𜰴</td>
+          <td class="c">𜰵</td>
+          <td class="c">𜰶</td>
+          <td class="c">𜰷</td>
+          <td class="c">𜰸</td>
+          <td class="c">𜰹</td>
+          <td class="c">𜰺</td>
+          <td class="c">𜰻</td>
+          <td class="c">𜰼</td>
+          <td class="c">𜰽</td>
+          <td class="c">𜰾</td>
+          <td class="c">𜰿</td>
+        </tr>
+        <tr>
+          <th>1CC40</th>
+          <td class="c">𜱀</td>
+          <td class="c">𜱁</td>
+          <td class="c">𜱂</td>
+          <td class="c">𜱃</td>
+          <td class="c">𜱄</td>
+          <td class="c">𜱅</td>
+          <td class="c">𜱆</td>
+          <td class="c">𜱇</td>
+          <td class="c">𜱈</td>
+          <td class="c">𜱉</td>
+          <td class="c">𜱊</td>
+          <td class="c">𜱋</td>
+          <td class="c">𜱌</td>
+          <td class="c">𜱍</td>
+          <td class="c">𜱎</td>
+          <td class="c">𜱏</td>
+        </tr>
+        <tr>
+          <th>1CC50</th>
+          <td class="c">𜱐</td>
+          <td class="c">𜱑</td>
+          <td class="c">𜱒</td>
+          <td class="c">𜱓</td>
+          <td class="c">𜱔</td>
+          <td class="c">𜱕</td>
+          <td class="c">𜱖</td>
+          <td class="c">𜱗</td>
+          <td class="c">𜱘</td>
+          <td class="c">𜱙</td>
+          <td class="c">𜱚</td>
+          <td class="c">𜱛</td>
+          <td class="c">𜱜</td>
+          <td class="c">𜱝</td>
+          <td class="c">𜱞</td>
+          <td class="c">𜱟</td>
+        </tr>
+        <tr>
+          <th>1CC60</th>
+          <td class="c">𜱠</td>
+          <td class="c">𜱡</td>
+          <td class="c">𜱢</td>
+          <td class="c">𜱣</td>
+          <td class="c">𜱤</td>
+          <td class="c">𜱥</td>
+          <td class="c">𜱦</td>
+          <td class="c">𜱧</td>
+          <td class="c">𜱨</td>
+          <td class="c">𜱩</td>
+          <td class="c">𜱪</td>
+          <td class="c">𜱫</td>
+          <td class="c">𜱬</td>
+          <td class="c">𜱭</td>
+          <td class="c">𜱮</td>
+          <td class="c">𜱯</td>
+        </tr>
+        <tr>
+          <th>1CC70</th>
+          <td class="c">𜱰</td>
+          <td class="c">𜱱</td>
+          <td class="c">𜱲</td>
+          <td class="c">𜱳</td>
+          <td class="c">𜱴</td>
+          <td class="c">𜱵</td>
+          <td class="c">𜱶</td>
+          <td class="c">𜱷</td>
+          <td class="c">𜱸</td>
+          <td class="c">𜱹</td>
+          <td class="c">𜱺</td>
+          <td class="c">𜱻</td>
+          <td class="c">𜱼</td>
+          <td class="c">𜱽</td>
+          <td class="c">𜱾</td>
+          <td class="c">𜱿</td>
+        </tr>
+        <tr>
+          <th>1CC80</th>
+          <td class="c">𜲀</td>
+          <td class="c">𜲁</td>
+          <td class="c">𜲂</td>
+          <td class="c">𜲃</td>
+          <td class="c">𜲄</td>
+          <td class="c">𜲅</td>
+          <td class="c">𜲆</td>
+          <td class="c">𜲇</td>
+          <td class="c">𜲈</td>
+          <td class="c">𜲉</td>
+          <td class="c">𜲊</td>
+          <td class="c">𜲋</td>
+          <td class="c">𜲌</td>
+          <td class="c">𜲍</td>
+          <td class="c">𜲎</td>
+          <td class="c">𜲏</td>
+        </tr>
+        <tr>
+          <th>1CC90</th>
+          <td class="c">𜲐</td>
+          <td class="c">𜲑</td>
+          <td class="c">𜲒</td>
+          <td class="c">𜲓</td>
+          <td class="c">𜲔</td>
+          <td class="c">𜲕</td>
+          <td class="c">𜲖</td>
+          <td class="c">𜲗</td>
+          <td class="c">𜲘</td>
+          <td class="c">𜲙</td>
+          <td class="c">𜲚</td>
+          <td class="c">𜲛</td>
+          <td class="c">𜲜</td>
+          <td class="c">𜲝</td>
+          <td class="c">𜲞</td>
+          <td class="c">𜲟</td>
+        </tr>
+        <tr>
+          <th>1CCA0</th>
+          <td class="c">𜲠</td>
+          <td class="c">𜲡</td>
+          <td class="c">𜲢</td>
+          <td class="c">𜲣</td>
+          <td class="c">𜲤</td>
+          <td class="c">𜲥</td>
+          <td class="c">𜲦</td>
+          <td class="c">𜲧</td>
+          <td class="c">𜲨</td>
+          <td class="c">𜲩</td>
+          <td class="c">𜲪</td>
+          <td class="c">𜲫</td>
+          <td class="c">𜲬</td>
+          <td class="c">𜲭</td>
+          <td class="c">𜲮</td>
+          <td class="c">𜲯</td>
+        </tr>
+        <tr>
+          <th>1CCB0</th>
+          <td class="c">𜲰</td>
+          <td class="c">𜲱</td>
+          <td class="c">𜲲</td>
+          <td class="c">𜲳</td>
+          <td class="c">𜲴</td>
+          <td class="c">𜲵</td>
+          <td class="c">𜲶</td>
+          <td class="c">𜲷</td>
+          <td class="c">𜲸</td>
+          <td class="c">𜲹</td>
+          <td class="c">𜲺</td>
+          <td class="c">𜲻</td>
+          <td class="c">𜲼</td>
+          <td class="c">𜲽</td>
+          <td class="c">𜲾</td>
+          <td class="c">𜲿</td>
+        </tr>
+        <tr>
+          <th>1CCC0</th>
+          <td class="c">𜳀</td>
+          <td class="c">𜳁</td>
+          <td class="c">𜳂</td>
+          <td class="c">𜳃</td>
+          <td class="c">𜳄</td>
+          <td class="c">𜳅</td>
+          <td class="c">𜳆</td>
+          <td class="c">𜳇</td>
+          <td class="c">𜳈</td>
+          <td class="c">𜳉</td>
+          <td class="c">𜳊</td>
+          <td class="c">𜳋</td>
+          <td class="c">𜳌</td>
+          <td class="c">𜳍</td>
+          <td class="c">𜳎</td>
+          <td class="c">𜳏</td>
+        </tr>
+        <tr>
+          <th>1CCD0</th>
+          <td class="c">𜳐</td>
+          <td class="c">𜳑</td>
+          <td class="c">𜳒</td>
+          <td class="c">𜳓</td>
+          <td class="c">𜳔</td>
+          <td class="c">𜳕</td>
+          <td class="c">𜳖</td>
+          <td class="c">𜳗</td>
+          <td class="c">𜳘</td>
+          <td class="c">𜳙</td>
+          <td class="c">𜳚</td>
+          <td class="c">𜳛</td>
+          <td class="c">𜳜</td>
+          <td class="c">𜳝</td>
+          <td class="c">𜳞</td>
+          <td class="c">𜳟</td>
+        </tr>
+        <tr>
+          <th>1CCE0</th>
+          <td class="c">𜳠</td>
+          <td class="c">𜳡</td>
+          <td class="c">𜳢</td>
+          <td class="c">𜳣</td>
+          <td class="c">𜳤</td>
+          <td class="c">𜳥</td>
+          <td class="c">𜳦</td>
+          <td class="c">𜳧</td>
+          <td class="c">𜳨</td>
+          <td class="c">𜳩</td>
+          <td class="c">𜳪</td>
+          <td class="c">𜳫</td>
+          <td class="c">𜳬</td>
+          <td class="c">𜳭</td>
+          <td class="c">𜳮</td>
+          <td class="c">𜳯</td>
+        </tr>
+        <tr>
+          <th>1CCF0</th>
+          <td class="c">𜳰</td>
+          <td class="c">𜳱</td>
+          <td class="c">𜳲</td>
+          <td class="c">𜳳</td>
+          <td class="c">𜳴</td>
+          <td class="c">𜳵</td>
+          <td class="c">𜳶</td>
+          <td class="c">𜳷</td>
+          <td class="c">𜳸</td>
+          <td class="c">𜳹</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <th>1CD00</th>
+          <td class="c">𜴀</td>
+          <td class="c">𜴁</td>
+          <td class="c">𜴂</td>
+          <td class="c">𜴃</td>
+          <td class="c">𜴄</td>
+          <td class="c">𜴅</td>
+          <td class="c">𜴆</td>
+          <td class="c">𜴇</td>
+          <td class="c">𜴈</td>
+          <td class="c">𜴉</td>
+          <td class="c">𜴊</td>
+          <td class="c">𜴋</td>
+          <td class="c">𜴌</td>
+          <td class="c">𜴍</td>
+          <td class="c">𜴎</td>
+          <td class="c">𜴏</td>
+        </tr>
+        <tr>
+          <th>1CD10</th>
+          <td class="c">𜴐</td>
+          <td class="c">𜴑</td>
+          <td class="c">𜴒</td>
+          <td class="c">𜴓</td>
+          <td class="c">𜴔</td>
+          <td class="c">𜴕</td>
+          <td class="c">𜴖</td>
+          <td class="c">𜴗</td>
+          <td class="c">𜴘</td>
+          <td class="c">𜴙</td>
+          <td class="c">𜴚</td>
+          <td class="c">𜴛</td>
+          <td class="c">𜴜</td>
+          <td class="c">𜴝</td>
+          <td class="c">𜴞</td>
+          <td class="c">𜴟</td>
+        </tr>
+        <tr>
+          <th>1CD20</th>
+          <td class="c">𜴠</td>
+          <td class="c">𜴡</td>
+          <td class="c">𜴢</td>
+          <td class="c">𜴣</td>
+          <td class="c">𜴤</td>
+          <td class="c">𜴥</td>
+          <td class="c">𜴦</td>
+          <td class="c">𜴧</td>
+          <td class="c">𜴨</td>
+          <td class="c">𜴩</td>
+          <td class="c">𜴪</td>
+          <td class="c">𜴫</td>
+          <td class="c">𜴬</td>
+          <td class="c">𜴭</td>
+          <td class="c">𜴮</td>
+          <td class="c">𜴯</td>
+        </tr>
+        <tr>
+          <th>1CD30</th>
+          <td class="c">𜴰</td>
+          <td class="c">𜴱</td>
+          <td class="c">𜴲</td>
+          <td class="c">𜴳</td>
+          <td class="c">𜴴</td>
+          <td class="c">𜴵</td>
+          <td class="c">𜴶</td>
+          <td class="c">𜴷</td>
+          <td class="c">𜴸</td>
+          <td class="c">𜴹</td>
+          <td class="c">𜴺</td>
+          <td class="c">𜴻</td>
+          <td class="c">𜴼</td>
+          <td class="c">𜴽</td>
+          <td class="c">𜴾</td>
+          <td class="c">𜴿</td>
+        </tr>
+        <tr>
+          <th>1CD40</th>
+          <td class="c">𜵀</td>
+          <td class="c">𜵁</td>
+          <td class="c">𜵂</td>
+          <td class="c">𜵃</td>
+          <td class="c">𜵄</td>
+          <td class="c">𜵅</td>
+          <td class="c">𜵆</td>
+          <td class="c">𜵇</td>
+          <td class="c">𜵈</td>
+          <td class="c">𜵉</td>
+          <td class="c">𜵊</td>
+          <td class="c">𜵋</td>
+          <td class="c">𜵌</td>
+          <td class="c">𜵍</td>
+          <td class="c">𜵎</td>
+          <td class="c">𜵏</td>
+        </tr>
+        <tr>
+          <th>1CD50</th>
+          <td class="c">𜵐</td>
+          <td class="c">𜵑</td>
+          <td class="c">𜵒</td>
+          <td class="c">𜵓</td>
+          <td class="c">𜵔</td>
+          <td class="c">𜵕</td>
+          <td class="c">𜵖</td>
+          <td class="c">𜵗</td>
+          <td class="c">𜵘</td>
+          <td class="c">𜵙</td>
+          <td class="c">𜵚</td>
+          <td class="c">𜵛</td>
+          <td class="c">𜵜</td>
+          <td class="c">𜵝</td>
+          <td class="c">𜵞</td>
+          <td class="c">𜵟</td>
+        </tr>
+        <tr>
+          <th>1CD60</th>
+          <td class="c">𜵠</td>
+          <td class="c">𜵡</td>
+          <td class="c">𜵢</td>
+          <td class="c">𜵣</td>
+          <td class="c">𜵤</td>
+          <td class="c">𜵥</td>
+          <td class="c">𜵦</td>
+          <td class="c">𜵧</td>
+          <td class="c">𜵨</td>
+          <td class="c">𜵩</td>
+          <td class="c">𜵪</td>
+          <td class="c">𜵫</td>
+          <td class="c">𜵬</td>
+          <td class="c">𜵭</td>
+          <td class="c">𜵮</td>
+          <td class="c">𜵯</td>
+        </tr>
+        <tr>
+          <th>1CD70</th>
+          <td class="c">𜵰</td>
+          <td class="c">𜵱</td>
+          <td class="c">𜵲</td>
+          <td class="c">𜵳</td>
+          <td class="c">𜵴</td>
+          <td class="c">𜵵</td>
+          <td class="c">𜵶</td>
+          <td class="c">𜵷</td>
+          <td class="c">𜵸</td>
+          <td class="c">𜵹</td>
+          <td class="c">𜵺</td>
+          <td class="c">𜵻</td>
+          <td class="c">𜵼</td>
+          <td class="c">𜵽</td>
+          <td class="c">𜵾</td>
+          <td class="c">𜵿</td>
+        </tr>
+        <tr>
+          <th>1CD80</th>
+          <td class="c">𜶀</td>
+          <td class="c">𜶁</td>
+          <td class="c">𜶂</td>
+          <td class="c">𜶃</td>
+          <td class="c">𜶄</td>
+          <td class="c">𜶅</td>
+          <td class="c">𜶆</td>
+          <td class="c">𜶇</td>
+          <td class="c">𜶈</td>
+          <td class="c">𜶉</td>
+          <td class="c">𜶊</td>
+          <td class="c">𜶋</td>
+          <td class="c">𜶌</td>
+          <td class="c">𜶍</td>
+          <td class="c">𜶎</td>
+          <td class="c">𜶏</td>
+        </tr>
+        <tr>
+          <th>1CD90</th>
+          <td class="c">𜶐</td>
+          <td class="c">𜶑</td>
+          <td class="c">𜶒</td>
+          <td class="c">𜶓</td>
+          <td class="c">𜶔</td>
+          <td class="c">𜶕</td>
+          <td class="c">𜶖</td>
+          <td class="c">𜶗</td>
+          <td class="c">𜶘</td>
+          <td class="c">𜶙</td>
+          <td class="c">𜶚</td>
+          <td class="c">𜶛</td>
+          <td class="c">𜶜</td>
+          <td class="c">𜶝</td>
+          <td class="c">𜶞</td>
+          <td class="c">𜶟</td>
+        </tr>
+        <tr>
+          <th>1CDA0</th>
+          <td class="c">𜶠</td>
+          <td class="c">𜶡</td>
+          <td class="c">𜶢</td>
+          <td class="c">𜶣</td>
+          <td class="c">𜶤</td>
+          <td class="c">𜶥</td>
+          <td class="c">𜶦</td>
+          <td class="c">𜶧</td>
+          <td class="c">𜶨</td>
+          <td class="c">𜶩</td>
+          <td class="c">𜶪</td>
+          <td class="c">𜶫</td>
+          <td class="c">𜶬</td>
+          <td class="c">𜶭</td>
+          <td class="c">𜶮</td>
+          <td class="c">𜶯</td>
+        </tr>
+        <tr>
+          <th>1CDB0</th>
+          <td class="c">𜶰</td>
+          <td class="c">𜶱</td>
+          <td class="c">𜶲</td>
+          <td class="c">𜶳</td>
+          <td class="c">𜶴</td>
+          <td class="c">𜶵</td>
+          <td class="c">𜶶</td>
+          <td class="c">𜶷</td>
+          <td class="c">𜶸</td>
+          <td class="c">𜶹</td>
+          <td class="c">𜶺</td>
+          <td class="c">𜶻</td>
+          <td class="c">𜶼</td>
+          <td class="c">𜶽</td>
+          <td class="c">𜶾</td>
+          <td class="c">𜶿</td>
+        </tr>
+        <tr>
+          <th>1CDC0</th>
+          <td class="c">𜷀</td>
+          <td class="c">𜷁</td>
+          <td class="c">𜷂</td>
+          <td class="c">𜷃</td>
+          <td class="c">𜷄</td>
+          <td class="c">𜷅</td>
+          <td class="c">𜷆</td>
+          <td class="c">𜷇</td>
+          <td class="c">𜷈</td>
+          <td class="c">𜷉</td>
+          <td class="c">𜷊</td>
+          <td class="c">𜷋</td>
+          <td class="c">𜷌</td>
+          <td class="c">𜷍</td>
+          <td class="c">𜷎</td>
+          <td class="c">𜷏</td>
+        </tr>
+        <tr>
+          <th>1CDD0</th>
+          <td class="c">𜷐</td>
+          <td class="c">𜷑</td>
+          <td class="c">𜷒</td>
+          <td class="c">𜷓</td>
+          <td class="c">𜷔</td>
+          <td class="c">𜷕</td>
+          <td class="c">𜷖</td>
+          <td class="c">𜷗</td>
+          <td class="c">𜷘</td>
+          <td class="c">𜷙</td>
+          <td class="c">𜷚</td>
+          <td class="c">𜷛</td>
+          <td class="c">𜷜</td>
+          <td class="c">𜷝</td>
+          <td class="c">𜷞</td>
+          <td class="c">𜷟</td>
+        </tr>
+        <tr>
+          <th>1CDE0</th>
+          <td class="c">𜷠</td>
+          <td class="c">𜷡</td>
+          <td class="c">𜷢</td>
+          <td class="c">𜷣</td>
+          <td class="c">𜷤</td>
+          <td class="c">𜷥</td>
+          <td class="c">𜷦</td>
+          <td class="c">𜷧</td>
+          <td class="c">𜷨</td>
+          <td class="c">𜷩</td>
+          <td class="c">𜷪</td>
+          <td class="c">𜷫</td>
+          <td class="c">𜷬</td>
+          <td class="c">𜷭</td>
+          <td class="c">𜷮</td>
+          <td class="c">𜷯</td>
+        </tr>
+        <tr>
+          <th>1CDF0</th>
+          <td class="c">𜷰</td>
+          <td class="c">𜷱</td>
+          <td class="c">𜷲</td>
+          <td class="c">𜷳</td>
+          <td class="c">𜷴</td>
+          <td class="c">𜷵</td>
+          <td class="c">𜷶</td>
+          <td class="c">𜷷</td>
+          <td class="c">𜷸</td>
+          <td class="c">𜷹</td>
+          <td class="c">𜷺</td>
+          <td class="c">𜷻</td>
+          <td class="c">𜷼</td>
+          <td class="c">𜷽</td>
+          <td class="c">𜷾</td>
+          <td class="c">𜷿</td>
+        </tr>
+        <tr>
+          <th>1CE00</th>
+          <td class="c">𜸀</td>
+          <td class="c">𜸁</td>
+          <td class="c">𜸂</td>
+          <td class="c">𜸃</td>
+          <td class="c">𜸄</td>
+          <td class="c">𜸅</td>
+          <td class="c">𜸆</td>
+          <td class="c">𜸇</td>
+          <td class="c">𜸈</td>
+          <td class="c">𜸉</td>
+          <td class="c">𜸊</td>
+          <td class="c">𜸋</td>
+          <td class="c">𜸌</td>
+          <td class="c">𜸍</td>
+          <td class="c">𜸎</td>
+          <td class="c">𜸏</td>
+        </tr>
+        <tr>
+          <th>1CE10</th>
+          <td class="c">𜸐</td>
+          <td class="c">𜸑</td>
+          <td class="c">𜸒</td>
+          <td class="c">𜸓</td>
+          <td class="c">𜸔</td>
+          <td class="c">𜸕</td>
+          <td class="c">𜸖</td>
+          <td class="c">𜸗</td>
+          <td class="c">𜸘</td>
+          <td class="c">𜸙</td>
+          <td class="c">𜸚</td>
+          <td class="c">𜸛</td>
+          <td class="c">𜸜</td>
+          <td class="c">𜸝</td>
+          <td class="c">𜸞</td>
+          <td class="c">𜸟</td>
+        </tr>
+        <tr>
+          <th>1CE20</th>
+          <td class="c">𜸠</td>
+          <td class="c">𜸡</td>
+          <td class="c">𜸢</td>
+          <td class="c">𜸣</td>
+          <td class="c">𜸤</td>
+          <td class="c">𜸥</td>
+          <td class="c">𜸦</td>
+          <td class="c">𜸧</td>
+          <td class="c">𜸨</td>
+          <td class="c">𜸩</td>
+          <td class="c">𜸪</td>
+          <td class="c">𜸫</td>
+          <td class="c">𜸬</td>
+          <td class="c">𜸭</td>
+          <td class="c">𜸮</td>
+          <td class="c">𜸯</td>
+        </tr>
+        <tr>
+          <th>1CE30</th>
+          <td class="c">𜸰</td>
+          <td class="c">𜸱</td>
+          <td class="c">𜸲</td>
+          <td class="c">𜸳</td>
+          <td class="c">𜸴</td>
+          <td class="c">𜸵</td>
+          <td class="c">𜸶</td>
+          <td class="c">𜸷</td>
+          <td class="c">𜸸</td>
+          <td class="c">𜸹</td>
+          <td class="c">𜸺</td>
+          <td class="c">𜸻</td>
+          <td class="c">𜸼</td>
+          <td class="c">𜸽</td>
+          <td class="c">𜸾</td>
+          <td class="c">𜸿</td>
+        </tr>
+        <tr>
+          <th>1CE40</th>
+          <td class="c">𜹀</td>
+          <td class="c">𜹁</td>
+          <td class="c">𜹂</td>
+          <td class="c">𜹃</td>
+          <td class="c">𜹄</td>
+          <td class="c">𜹅</td>
+          <td class="c">𜹆</td>
+          <td class="c">𜹇</td>
+          <td class="c">𜹈</td>
+          <td class="c">𜹉</td>
+          <td class="c">𜹊</td>
+          <td class="c">𜹋</td>
+          <td class="c">𜹌</td>
+          <td class="c">𜹍</td>
+          <td class="c">𜹎</td>
+          <td class="c">𜹏</td>
+        </tr>
+        <tr>
+          <th>1CE50</th>
+          <td class="c">𜹐</td>
+          <td class="c">𜹑</td>
+          <td class="c">𜹒</td>
+          <td class="c">𜹓</td>
+          <td class="c">𜹔</td>
+          <td class="c">𜹕</td>
+          <td class="c">𜹖</td>
+          <td class="c">𜹗</td>
+          <td class="c">𜹘</td>
+          <td class="c">𜹙</td>
+          <td class="c">𜹚</td>
+          <td class="c">𜹛</td>
+          <td class="c">𜹜</td>
+          <td class="c">𜹝</td>
+          <td class="c">𜹞</td>
+          <td class="c">𜹟</td>
+        </tr>
+        <tr>
+          <th>1CE60</th>
+          <td class="c">𜹠</td>
+          <td class="c">𜹡</td>
+          <td class="c">𜹢</td>
+          <td class="c">𜹣</td>
+          <td class="c">𜹤</td>
+          <td class="c">𜹥</td>
+          <td class="c">𜹦</td>
+          <td class="c">𜹧</td>
+          <td class="c">𜹨</td>
+          <td class="c">𜹩</td>
+          <td class="c">𜹪</td>
+          <td class="c">𜹫</td>
+          <td class="c">𜹬</td>
+          <td class="c">𜹭</td>
+          <td class="c">𜹮</td>
+          <td class="c">𜹯</td>
+        </tr>
+        <tr>
+          <th>1CE70</th>
+          <td class="c">𜹰</td>
+          <td class="c">𜹱</td>
+          <td class="c">𜹲</td>
+          <td class="c">𜹳</td>
+          <td class="c">𜹴</td>
+          <td class="c">𜹵</td>
+          <td class="c">𜹶</td>
+          <td class="c">𜹷</td>
+          <td class="c">𜹸</td>
+          <td class="c">𜹹</td>
+          <td class="c">𜹺</td>
+          <td class="c">𜹻</td>
+          <td class="c">𜹼</td>
+          <td class="c">𜹽</td>
+          <td class="c">𜹾</td>
+          <td class="c">𜹿</td>
+        </tr>
+        <tr>
+          <th>1CE80</th>
+          <td class="c">𜺀</td>
+          <td class="c">𜺁</td>
+          <td class="c">𜺂</td>
+          <td class="c">𜺃</td>
+          <td class="c">𜺄</td>
+          <td class="c">𜺅</td>
+          <td class="c">𜺆</td>
+          <td class="c">𜺇</td>
+          <td class="c">𜺈</td>
+          <td class="c">𜺉</td>
+          <td class="c">𜺊</td>
+          <td class="c">𜺋</td>
+          <td class="c">𜺌</td>
+          <td class="c">𜺍</td>
+          <td class="c">𜺎</td>
+          <td class="c">𜺏</td>
+        </tr>
+        <tr>
+          <th>1CE90</th>
+          <td class="c">𜺐</td>
+          <td class="c">𜺑</td>
+          <td class="c">𜺒</td>
+          <td class="c">𜺓</td>
+          <td class="c">𜺔</td>
+          <td class="c">𜺕</td>
+          <td class="c">𜺖</td>
+          <td class="c">𜺗</td>
+          <td class="c">𜺘</td>
+          <td class="c">𜺙</td>
+          <td class="c">𜺚</td>
+          <td class="c">𜺛</td>
+          <td class="c">𜺜</td>
+          <td class="c">𜺝</td>
+          <td class="c">𜺞</td>
+          <td class="c">𜺟</td>
+        </tr>
+        <tr>
+          <th>1CEA0</th>
+          <td class="c">𜺠</td>
+          <td class="c">𜺡</td>
+          <td class="c">𜺢</td>
+          <td class="c">𜺣</td>
+          <td class="c">𜺤</td>
+          <td class="c">𜺥</td>
+          <td class="c">𜺦</td>
+          <td class="c">𜺧</td>
+          <td class="c">𜺨</td>
+          <td class="c">𜺩</td>
+          <td class="c">𜺪</td>
+          <td class="c">𜺫</td>
+          <td class="c">𜺬</td>
+          <td class="c">𜺭</td>
+          <td class="c">𜺮</td>
+          <td class="c">𜺯</td>
+        </tr>
+        <tr class="b">
+          <th>1CEB0</th>
+          <td class="c">𜺰</td>
+          <td class="c">𜺱</td>
+          <td class="c">𜺲</td>
+          <td class="c">𜺳</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
           <th>1D110</th>
           <td></td>
           <td></td>
@@ -2267,19 +3226,171 @@
           <td></td>
         </tr>
         <tr>
+          <th>1FB00</th>
+          <td class="c">🬀</td>
+          <td class="c">🬁</td>
+          <td class="c">🬂</td>
+          <td class="c">🬃</td>
+          <td class="c">🬄</td>
+          <td class="c">🬅</td>
+          <td class="c">🬆</td>
+          <td class="c">🬇</td>
+          <td class="c">🬈</td>
+          <td class="c">🬉</td>
+          <td class="c">🬊</td>
+          <td class="c">🬋</td>
+          <td class="c">🬌</td>
+          <td class="c">🬍</td>
+          <td class="c">🬎</td>
+          <td class="c">🬏</td>
+        </tr>
+        <tr>
+          <th>1FB10</th>
+          <td class="c">🬐</td>
+          <td class="c">🬑</td>
+          <td class="c">🬒</td>
+          <td class="c">🬓</td>
+          <td class="c">🬔</td>
+          <td class="c">🬕</td>
+          <td class="c">🬖</td>
+          <td class="c">🬗</td>
+          <td class="c">🬘</td>
+          <td class="c">🬙</td>
+          <td class="c">🬚</td>
+          <td class="c">🬛</td>
+          <td class="c">🬜</td>
+          <td class="c">🬝</td>
+          <td class="c">🬞</td>
+          <td class="c">🬟</td>
+        </tr>
+        <tr>
+          <th>1FB20</th>
+          <td class="c">🬠</td>
+          <td class="c">🬡</td>
+          <td class="c">🬢</td>
+          <td class="c">🬣</td>
+          <td class="c">🬤</td>
+          <td class="c">🬥</td>
+          <td class="c">🬦</td>
+          <td class="c">🬧</td>
+          <td class="c">🬨</td>
+          <td class="c">🬩</td>
+          <td class="c">🬪</td>
+          <td class="c">🬫</td>
+          <td class="c">🬬</td>
+          <td class="c">🬭</td>
+          <td class="c">🬮</td>
+          <td class="c">🬯</td>
+        </tr>
+        <tr>
+          <th>1FB30</th>
+          <td class="c">🬰</td>
+          <td class="c">🬱</td>
+          <td class="c">🬲</td>
+          <td class="c">🬳</td>
+          <td class="c">🬴</td>
+          <td class="c">🬵</td>
+          <td class="c">🬶</td>
+          <td class="c">🬷</td>
+          <td class="c">🬸</td>
+          <td class="c">🬹</td>
+          <td class="c">🬺</td>
+          <td class="c">🬻</td>
+          <td class="c">🬼</td>
+          <td class="c">🬽</td>
+          <td class="c">🬾</td>
+          <td class="c">🬿</td>
+        </tr>
+        <tr>
+          <th>1FB40</th>
+          <td class="c">🭀</td>
+          <td class="c">🭁</td>
+          <td class="c">🭂</td>
+          <td class="c">🭃</td>
+          <td class="c">🭄</td>
+          <td class="c">🭅</td>
+          <td class="c">🭆</td>
+          <td class="c">🭇</td>
+          <td class="c">🭈</td>
+          <td class="c">🭉</td>
+          <td class="c">🭊</td>
+          <td class="c">🭋</td>
+          <td class="c">🭌</td>
+          <td class="c">🭍</td>
+          <td class="c">🭎</td>
+          <td class="c">🭏</td>
+        </tr>
+        <tr>
+          <th>1FB50</th>
+          <td class="c">🭐</td>
+          <td class="c">🭑</td>
+          <td class="c">🭒</td>
+          <td class="c">🭓</td>
+          <td class="c">🭔</td>
+          <td class="c">🭕</td>
+          <td class="c">🭖</td>
+          <td class="c">🭗</td>
+          <td class="c">🭘</td>
+          <td class="c">🭙</td>
+          <td class="c">🭚</td>
+          <td class="c">🭛</td>
+          <td class="c">🭜</td>
+          <td class="c">🭝</td>
+          <td class="c">🭞</td>
+          <td class="c">🭟</td>
+        </tr>
+        <tr>
+          <th>1FB60</th>
+          <td class="c">🭠</td>
+          <td class="c">🭡</td>
+          <td class="c">🭢</td>
+          <td class="c">🭣</td>
+          <td class="c">🭤</td>
+          <td class="c">🭥</td>
+          <td class="c">🭦</td>
+          <td class="c">🭧</td>
+          <td class="c">🭨</td>
+          <td class="c">🭩</td>
+          <td class="c">🭪</td>
+          <td class="c">🭫</td>
+          <td class="c">🭬</td>
+          <td class="c">🭭</td>
+          <td class="c">🭮</td>
+          <td class="c">🭯</td>
+        </tr>
+        <tr>
+          <th>1FB70</th>
+          <td class="c">🭰</td>
+          <td class="c">🭱</td>
+          <td class="c">🭲</td>
+          <td class="c">🭳</td>
+          <td class="c">🭴</td>
+          <td class="c">🭵</td>
+          <td class="c">🭶</td>
+          <td class="c">🭷</td>
+          <td class="c">🭸</td>
+          <td class="c">🭹</td>
+          <td class="c">🭺</td>
+          <td class="c">🭻</td>
+          <td class="c">🭼</td>
+          <td class="c">🭽</td>
+          <td class="c">🭾</td>
+          <td class="c">🭿</td>
+        </tr>
+        <tr>
           <th>1FB80</th>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">🮀</td>
+          <td class="c">🮁</td>
+          <td class="c">🮂</td>
+          <td class="c">🮃</td>
+          <td class="c">🮄</td>
+          <td class="c">🮅</td>
+          <td class="c">🮆</td>
+          <td class="c">🮇</td>
+          <td class="c">🮈</td>
+          <td class="c">🮉</td>
+          <td class="c">🮊</td>
+          <td class="c">🮋</td>
           <td class="c">🮌</td>
           <td class="c">🮍</td>
           <td class="c">🮎</td>
@@ -2288,23 +3399,23 @@
         <tr>
           <th>1FB90</th>
           <td class="c">🮐</td>
+          <td class="c">🮑</td>
+          <td class="c">🮒</td>
           <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">🮔</td>
           <td class="c">🮕</td>
           <td class="c">🮖</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">🮗</td>
+          <td class="c">🮘</td>
+          <td class="c">🮙</td>
+          <td class="c">🮚</td>
+          <td class="c">🮛</td>
           <td class="c">🮜</td>
           <td class="c">🮝</td>
           <td class="c">🮞</td>
           <td class="c">🮟</td>
         </tr>
-        <tr class="b">
+        <tr>
           <th>1FBA0</th>
           <td class="c">🮠</td>
           <td class="c">🮡</td>
@@ -2316,25 +3427,101 @@
           <td class="c">🮧</td>
           <td class="c">🮨</td>
           <td class="c">🮩</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">🮪</td>
+          <td class="c">🮫</td>
+          <td class="c">🮬</td>
+          <td class="c">🮭</td>
+          <td class="c">🮮</td>
+          <td class="c">🮯</td>
+        </tr>
+        <tr>
+          <th>1FBB0</th>
+          <td class="c">🮰</td>
+          <td class="c">🮱</td>
+          <td class="c">🮲</td>
+          <td class="c">🮳</td>
+          <td class="c">🮴</td>
+          <td class="c">🮵</td>
+          <td class="c">🮶</td>
+          <td class="c">🮷</td>
+          <td class="c">🮸</td>
+          <td class="c">🮹</td>
+          <td class="c">🮺</td>
+          <td class="c">🮻</td>
+          <td class="c">🮼</td>
+          <td class="c">🮽</td>
+          <td class="c">🮾</td>
+          <td class="c">🮿</td>
         </tr>
         <tr>
           <th>1FBC0</th>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td class="c">🯀</td>
+          <td class="c">🯁</td>
+          <td class="c">🯂</td>
+          <td class="c">🯃</td>
+          <td class="c">🯄</td>
           <td class="c">🯅</td>
           <td class="c">🯆</td>
           <td class="c">🯇</td>
           <td class="c">🯈</td>
-          <td></td>
+          <td class="c">🯉</td>
+          <td class="c">🯊</td>
+          <td class="c">🯋</td>
+          <td class="c">🯌</td>
+          <td class="c">🯍</td>
+          <td class="c">🯎</td>
+          <td class="c">🯏</td>
+        </tr>
+        <tr>
+          <th>1FBD0</th>
+          <td class="c">🯐</td>
+          <td class="c">🯑</td>
+          <td class="c">🯒</td>
+          <td class="c">🯓</td>
+          <td class="c">🯔</td>
+          <td class="c">🯕</td>
+          <td class="c">🯖</td>
+          <td class="c">🯗</td>
+          <td class="c">🯘</td>
+          <td class="c">🯙</td>
+          <td class="c">🯚</td>
+          <td class="c">🯛</td>
+          <td class="c">🯜</td>
+          <td class="c">🯝</td>
+          <td class="c">🯞</td>
+          <td class="c">🯟</td>
+        </tr>
+        <tr>
+          <th>1FBE0</th>
+          <td class="c">🯠</td>
+          <td class="c">🯡</td>
+          <td class="c">🯢</td>
+          <td class="c">🯣</td>
+          <td class="c">🯤</td>
+          <td class="c">🯥</td>
+          <td class="c">🯦</td>
+          <td class="c">🯧</td>
+          <td class="c">🯨</td>
+          <td class="c">🯩</td>
+          <td class="c">🯪</td>
+          <td class="c">🯫</td>
+          <td class="c">🯬</td>
+          <td class="c">🯭</td>
+          <td class="c">🯮</td>
+          <td class="c">🯯</td>
+        </tr>
+        <tr>
+          <th>1FBF0</th>
+          <td class="c">🯰</td>
+          <td class="c">🯱</td>
+          <td class="c">🯲</td>
+          <td class="c">🯳</td>
+          <td class="c">🯴</td>
+          <td class="c">🯵</td>
+          <td class="c">🯶</td>
+          <td class="c">🯷</td>
+          <td class="c">🯸</td>
+          <td class="c">🯹</td>
           <td></td>
           <td></td>
           <td></td>

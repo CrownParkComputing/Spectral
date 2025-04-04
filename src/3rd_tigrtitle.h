@@ -1,12 +1,17 @@
 char* tigrTitle(Tigr *win, const char *title) {
-    static char copy[128] = {0};
     if( title ) {
 #ifdef __APPLE__
-
+        // @todo
 #elif defined _WIN32
+        static wchar_t bak[128];
         wchar_t *widen(const char *);
-        // SetWindowTextA((HWND)(win->handle), title);
-        SetWindowTextW((HWND)(win->handle), widen(title));
+        _snwprintf(bak, 128, L"%s", widen(title));
+
+        if(win->handle) {
+            int err = SetWindowTextW((HWND)(win->handle), bak) == 0;
+            RedrawWindow((HWND)(win->handle), NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+            //SendMessageW( (HWND)win->handle, WM_SETTEXT, 0, (LPARAM)bak );
+        }
 #else
         XTextProperty prop;
         int result = Xutf8TextListToTextProperty(dpy, (char**)&title, 1, XUTF8StringStyle, &prop);
@@ -16,7 +21,8 @@ char* tigrTitle(Tigr *win, const char *title) {
             XFree(prop.value);
         }
 #endif
-        snprintf(copy, 128, "%s", title);
     }
+    static char copy[128] = {0};
+    if( title ) snprintf(copy, 128, "%s", title);
     return copy;
 }

@@ -226,7 +226,7 @@ int import_state(FILE *fp) {
     }
     for( int i = 0; i < medias; ++i ) {
         getnn(media[i].bin, media[i].len);
-        if(loadbin_(media[i].bin, media[i].len, 0))
+        if(loadbin_(media[i].bin, media[i].len, 0, ZX))
             tape_seekf(media[i].pos); // @fixme: dsk side/sector case. needed?
     }
 
