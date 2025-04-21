@@ -2,13 +2,21 @@
 //#define AUDIO_LATENCY       100 // ms
 #define AUDIO_BUFFERLEN     _SAUDIO_DEFAULT_BUFFER_FRAMES // (AUDIO_FREQUENCY/(1000/AUDIO_LATENCY))
 
-#define audio_queue(sample) do { \
-    audio_buffer[audio_write++] = sample; \
-    if (audio_write >= AUDIO_BUFFERLEN) audio_write = 0, saudio_push(audio_buffer, AUDIO_BUFFERLEN); \
+#define audio_queue(sample,samples) do { /* mixed samples, then [3 separated AY channels + 1 beeper] */ \
+    audio_buffer1[audio_write  ] = samples[0]; \
+    audio_buffer2[audio_write  ] = samples[1]; \
+    audio_buffer3[audio_write  ] = samples[2]; \
+    audio_buffer4[audio_write  ] = samples[3]; \
+    audio_bufferA[audio_write++] = sample; \
+    if (audio_write >= AUDIO_BUFFERLEN) audio_write = 0, saudio_push(audio_bufferA, AUDIO_BUFFERLEN); \
 } while(0)
 
 int audio_write = 0;
-float audio_buffer[AUDIO_BUFFERLEN] = {0};
+float audio_buffer1[AUDIO_BUFFERLEN] = {0};
+float audio_buffer2[AUDIO_BUFFERLEN] = {0};
+float audio_buffer3[AUDIO_BUFFERLEN] = {0};
+float audio_buffer4[AUDIO_BUFFERLEN] = {0};
+float audio_bufferA[AUDIO_BUFFERLEN] = {0};
 
 void sys_audio();
 
@@ -41,7 +49,7 @@ void audio_init() {
 //#include "res/audio/motor2"  // S16 C1 22050Hz rvm
 //enum {motor_volume = 3};
 #include "res/audio/running" // S16 C1 22050Hz zxsp
-enum {motor_volume = 5};
+enum {motor_volume = 3}; // 5
 
 #include "res/audio/seek"    // S16 C1 22050Hz cap32
 //#include "res/audio/seek2"   // S16 C1 22050Hz 
@@ -76,7 +84,7 @@ float mix(float dt) {
     float accum = 0, voices = 0;
     for( int i = 0; i < voices_max; ++i ) {
         voice_t *v = voice + i;
-        if( !v->count ) continue;
+        if( v->count == 0 ) continue;
 
         v->pos += dt;
 
@@ -85,7 +93,7 @@ float mix(float dt) {
             v->count--;
         }
 
-        if( v->count ) {
+        if( v->count > 0 ) {
             accum += v->samples[(unsigned)v->pos]; 
             ++voices;
         }

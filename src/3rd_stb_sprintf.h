@@ -158,11 +158,30 @@ PERFORMANCE vs MSVC 2008 32-/64-bit (GCC is even slower than MSVC):
  #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
   #define STBSP__ASAN __attribute__((__no_sanitize_address__))
  #endif
+#elif defined(_MSC_VER) && defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+  #define STBSP__ASAN __declspec(no_sanitize_address)
 #endif
 
 #ifndef STBSP__ASAN
 #define STBSP__ASAN
 #endif
+
+#if defined _MSC_VER && !defined __clang__
+
+#ifdef STB_SPRINTF_STATIC
+#define STBSP__PUBLICDEC static STBSP__ASAN
+#define STBSP__PUBLICDEF static
+#else
+#ifdef __cplusplus
+#define STBSP__PUBLICDEC extern "C" STBSP__ASAN
+#define STBSP__PUBLICDEF extern "C"
+#else
+#define STBSP__PUBLICDEC extern STBSP__ASAN
+#define STBSP__PUBLICDEF
+#endif
+#endif
+
+#else
 
 #ifdef STB_SPRINTF_STATIC
 #define STBSP__PUBLICDEC static
@@ -175,6 +194,8 @@ PERFORMANCE vs MSVC 2008 32-/64-bit (GCC is even slower than MSVC):
 #define STBSP__PUBLICDEC extern
 #define STBSP__PUBLICDEF STBSP__ASAN
 #endif
+#endif
+
 #endif
 
 #if defined(__has_attribute)
@@ -322,6 +343,9 @@ static STBSP__ASAN stbsp__uint32 stbsp__strlen_limited(char const *s, stbsp__uin
       --limit;
    }
 
+#if defined(_MSC_VER) && defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+   // go safe path
+#else
    // scan over 4 bytes at a time to find terminating 0
    // this will intentionally scan up to 3 bytes past the end of buffers,
    // but becase it works 4B aligned, it will never cross page boundaries
@@ -336,6 +360,7 @@ static STBSP__ASAN stbsp__uint32 stbsp__strlen_limited(char const *s, stbsp__uin
       sn += 4;
       limit -= 4;
    }
+#endif
 
    // handle the last few characters to find actual size
    while (limit && *sn) {
@@ -406,7 +431,15 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
             // Using the 'hasless' trick:
             // https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
             stbsp__uint32 v, c;
+#if defined(_MSC_VER) && defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+            // go safe path
+            v = f[0];
+            if( f[0] ) { v |= f[1] << 8;
+            if( f[1] ) { v |= f[2] << 16;
+            if( f[2] ) { v |= f[3] << 24; }}}
+#else
             v = *(stbsp__uint32 *)f;
+#endif
             c = (~v) & 0x80808080;
             if (((v ^ 0x25252525) - 0x01010101) & c)
                goto schk1;

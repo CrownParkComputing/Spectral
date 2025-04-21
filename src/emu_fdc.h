@@ -1239,4 +1239,4 @@ void fdc_tick(int TS) {
     IMPORT(active_track); \
     IMPORT(read_status_delay); \
     IMPORT(pbGPBuffer); \
-    EXPORT(last_sector_hit);
+    IMPORT(last_sector_hit);

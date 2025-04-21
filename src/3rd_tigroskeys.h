@@ -1,3 +1,4 @@
+#include <stdbool.h>
 void enable_os_keys( bool on );
 
 #ifdef _WIN32

@@ -1,6 +1,11 @@
+// Tigr flags:
+// - TIGR_AUTO: enlarge allowed in any pixel ratio (_320,_240 vars may resize)
+// - TIGR_FIXED: enlarge allowed in perfect integer pixel ratios (default) (_320,_240 vars do not resize)
+
 extern Tigr *app;
 
 #define window Tigr
+#define window_flags(FS,ZOOM) (((FS) * TIGR_FULLSCREEN) | TIGR_FIXED | ((ZOOM)==2?TIGR_2X:(ZOOM)==3?TIGR_3X:(ZOOM)==4?TIGR_4X:0))
 #define window_closed() (tigrClosed(app))
 #define window_close()  (app = (app ? tigrFree(app), NULL : NULL))
 #define window_width()  (app->w)
@@ -41,7 +46,8 @@ char* prompt(const char *title, const char *body, const char *defaults ) {
     static char buffer[256]; buffer[0] = '\0';
     char *cmd = va("osascript -e 'text returned of (display dialog \"%s - %s\" default answer \"%s\")'", title, body, defaults);
     for( FILE *fp = popen(cmd, "r"); fp; pclose(fp), fp = 0 ) {
-        fgets(buffer, 256, fp);
+        if( fgets(buffer, 256, fp) >= 0 )
+            while(strchr("\r\n", buffer[strlen(buffer)-1])) buffer[strlen(buffer)-1] = '\0';
     }
     puts(buffer);
     return buffer;
@@ -131,7 +137,8 @@ char* prompt(const char *title, const char *body, const char *defaults ) {
     char *cmdk = va("kdialog --title \"%s\" --inputbox \"%s\" \"%s\"", title, body, defaults);
     char *cmdz = va("zenity --title \"%s\" --entry --text \"%s\" --entry-text \"%s\"", title, body, defaults);
     for( FILE *fp = popen(va("%s || %s", cmdk, cmdz), "r"); fp; pclose(fp), fp = 0 ) {
-        fgets(buffer, 256, fp);
+        if( fgets(buffer, 256, fp) >= 0 )
+            while(strchr("\r\n", buffer[strlen(buffer)-1])) buffer[strlen(buffer)-1] = '\0';
     }
     puts(buffer);
     return buffer;

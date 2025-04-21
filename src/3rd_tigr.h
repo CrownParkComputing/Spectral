@@ -724,6 +724,10 @@ int tigrEnforceScale(int scale, int flags) {
         scale = 3;
     if ((flags & TIGR_2X) && scale < 2)
         scale = 2;
+#if 1 //< @r-lyeh: assume TIGR_1X, if no TIGR_2X/TIGR_3X/TIGR_4X flags are present
+    if ((flags & (TIGR_2X|TIGR_3X|TIGR_4X)) == 0)
+        scale = 1;
+#endif
     return scale;
 }
 
@@ -2498,7 +2502,7 @@ void tigrWinUpdateWidgets(Tigr* bmp, int dw, int dh) {
     if (clicked & 1)
         ShowWindow((HWND)bmp->handle, SW_MINIMIZE);
     if (clicked & 2)
-        tigrLeaveBorderlessWindowed(bmp);
+        tigrLeaveBorderlessWindowed(bmp), win->flags &= ~TIGR_FULLSCREEN;
     if (clicked & 4)
         SendMessage((HWND)bmp->handle, WM_CLOSE, 0, 0);
 }
@@ -2678,7 +2682,7 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 // prefer instead to be borderless.
                 if (wParam == SIZE_MAXIMIZED) {
                     ShowWindow((HWND)bmp->handle, SW_NORMAL);
-                    tigrEnterBorderlessWindowed(bmp);
+                    tigrEnterBorderlessWindowed(bmp), win->flags |= TIGR_FULLSCREEN;
                 }
 #endif
             }
@@ -2727,9 +2731,9 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 if (wParam == VK_RETURN) {
                     // Alt+Enter
                     if (win->dwStyle & WS_POPUP)
-                        tigrLeaveBorderlessWindowed(bmp);
+                        tigrLeaveBorderlessWindowed(bmp), win->flags &= ~TIGR_FULLSCREEN;
                     else
-                        tigrEnterBorderlessWindowed(bmp);
+                        tigrEnterBorderlessWindowed(bmp), win->flags |=  TIGR_FULLSCREEN;
                     return 0;
                 }
             }
@@ -2862,13 +2866,13 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
     tigrGAPICreate(bmp);
 
     if (flags & TIGR_FULLSCREEN) {
-        tigrEnterBorderlessWindowed(bmp);
+        tigrEnterBorderlessWindowed(bmp), win->flags |= TIGR_FULLSCREEN;
     } else {
 // Try and restore our window position.
 #ifndef TIGR_DO_NOT_PRESERVE_WINDOW_POSITION
         if (RegQueryValueExW(tigrRegKey, wtitle, NULL, NULL, (BYTE*)&wp, &wpsize) == ERROR_SUCCESS) {
             if (wp.showCmd == SW_MAXIMIZE)
-                tigrEnterBorderlessWindowed(bmp);
+                tigrEnterBorderlessWindowed(bmp), win->flags |= TIGR_FULLSCREEN;
             else
                 SetWindowPlacement(hWnd, &wp);
         }
@@ -4153,7 +4157,8 @@ void _tigrOnCocoaEvent(id event, id window) {
 
 #if 1 // @r-lyeh
             if( win->keys[TK_ALT] && win->keys[TK_RETURN] && !win->prev[TK_RETURN] )
-            objc_msgSend_void_id(window, sel("toggleFullScreen:"), window);
+            objc_msgSend_void_id(window, sel("toggleFullScreen:"), window),
+            win->flags ^= TIGR_FULLSCREEN;
 #endif
 
             // Pass through cmd+key
@@ -5500,9 +5505,9 @@ static int tigrToggleFullscreen(TigrInternal* win)
     xev.xclient.data.l[4] = 0;  /* unused */
 
     if(!XSendEvent(win->dpy, DefaultRootWindow(win->dpy), 0, evmask, &xev)) {
-        return -1;
+        return 0; // err
     }
-    return 0;
+    return 1; // ok
 }
 #endif
 
@@ -5590,9 +5595,9 @@ static void tigrProcessInput(TigrInternal* win, int winWidth, int winHeight) {
 
 #if 1 // @r-lyeh
     if( win->keys[TK_LALT] || win->keys[TK_RALT] )
-    if( win->keys[TK_RETURN] && !win->prev[TK_RETURN] ) {
-        tigrToggleFullscreen(win);
-    }
+    if( win->keys[TK_RETURN] && !win->prev[TK_RETURN] )
+    if( tigrToggleFullscreen(win) )
+        win->flags ^= TIGR_FULLSCREEN;
 #endif
 
     XEvent event;

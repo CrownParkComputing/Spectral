@@ -83,10 +83,10 @@ bool RZX_play(const char *filename, int rec) {
         if( rzx_record(filename) != RZX_OK )
             return alert("Unable to start recording"), 0;
         // Store a snapshot into the RZX.
-        // @todo: z80_save("spectral.$$");
-        if( rzx_add_snapshot("spectral.$$", RZX_COMPRESSED) != RZX_OK )
+        // @todo: z80_save(".Spectral/$$z80");
+        if( rzx_add_snapshot(".Spectral/$$rzx", RZX_COMPRESSED) != RZX_OK )
             return alert("Unable to insert snapshot"), 0;
-        unlink("spectral.$$");
+        unlink(".Spectral/$$rzx");
         return 1;
     }
     else {

@@ -119,6 +119,45 @@ char *zxdb_screen(const char *id, int *len) {
     return NULL;
 }
 
+// newer v2 function to download games and specific releases. also unzips.
+// supports both #4424 and #4424#10 formats
+char *zxdb_download2_unc(const char *id_, int *len) { // must free()
+    if( id_ && id_[0] && strcmp(id_, "0") && strcmp(id_, "#") ) {
+
+        char *id = va("%s", id_);
+        const char *hint = "play";
+
+        for( int gid, seq; sscanf(id, "#%d#%d", &gid, &seq ) == 2; ) {
+            hint = strrchr(id,'#')+1;
+            *strrchr(id,'#') = '\0';
+            break;
+        }
+
+        char *data = NULL;
+
+        zxdb z = zxdb_search( id );
+        if( z.ids[0] ) {
+            char *url = zxdb_url(z, hint);
+            data = zxdb_download(z,url,len);
+            if( data && strendi(url, ".zip") && !memcmp(data, "PK", 2) ) {
+                // this temp file is a hack for now. @fixme: move the zip/rar/fdi loaders into loadbin()
+                for( FILE *fp = fopen(".Spectral/$$download2.zip", "wb"); fp; fwrite(data, *len, 1, fp), fclose(fp), fp = 0) {
+
+                }
+                char *data2 = unzip(".Spectral/$$download2.zip/*", len);
+                unlink(".Spectral/$$download2.zip");
+                free(data);
+                data = data2;
+            }
+        }
+        zxdb_free(z);
+
+        return data;
+    }
+    return NULL;
+}
+
+// @fixme: next function should use the previous zxdb_download2() function above
 bool zxdb_load(const char *id_, int ZX_MODEL) {
     if( id_ && id_[0] && strcmp(id_, "0") && strcmp(id_, "#") ) {
 
@@ -173,20 +212,19 @@ bool zxdb_load(const char *id_, int ZX_MODEL) {
                 loadbin(data, len, true);
         #else
                 // this temp file is a hack for now. @fixme: move the zip/rar/fdi loaders into loadbin()
-                for( FILE *fp = fopen("spectral.$$2", "wb"); fp; fwrite(data, len, 1, fp), fclose(fp), fp = 0) {
+                for( FILE *fp = fopen(".Spectral/$$load", "wb"); fp; fwrite(data, len, 1, fp), fclose(fp), fp = 0) {
                 }
-                loadfile("spectral.$$2", 1, 0);
-                unlink("spectral.$$2");
+                loadfile(".Spectral/$$load", 1, 0);
+                unlink(".Spectral/$$load");
         #endif
             }
 
             // @fixme: verify that previous step went right
 
-            ZXDB = ZXDB2;
-
             extern char *last_load;
-            last_load = (free(last_load), strdup(id_));
+            last_load = (free(last_load), strdup(ZXDB2.ids[2]/*id_*/));
 
+            ZXDB = ZXDB2;
             return true;
         }
     }
@@ -744,15 +782,15 @@ char* game_browser_v1() {
 
     enum { ENTRIES = (_240/11)-2 };
     int chosen = game_browser_keyboard(ENTRIES, numgames);
-        // returns '..' if finder is not visible
+        // return '..' if finder is not visible
         if( press_backspace && !has_finder ) return selected = 0, scroll = 0, games[0];
-        // returns game selection
+        // return game selection
         if( chosen >= 0 ) {
             // if chosen is a dir, reset scroll&cursor for next frame
             if( strendi(games[chosen], "/") ) {
                 scroll = 0, selected = 0;
             }
-            // returns selection
+            // return selection
             return games[chosen];
         }
 
@@ -832,7 +870,12 @@ char* game_browser_v1() {
     // if( key_trigger( TK_RIGHT) ) { for(++up; (selected+up) < numgames && (dbgames[selected+up]&0xFF) <= 1; ++up ) ; }
 
     if( clicked ) {
-        return games[selected];
+        char *chosen = games[selected];
+        // if chosen is a dir, reset scroll&cursor for next frame
+        if( strendi(games[selected], "/") ) {
+            scroll = 0, selected = 0;
+        }
+        return chosen;
     }
 
     return NULL;
@@ -913,7 +956,7 @@ char* game_browser_v2() {
                         cmdarg = 0; // ZX_FOLDER;
                     }
                     else if( *tab == '\x18' ) {
-                        const char *search = prompt("Game search", ""/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
+                        const char *search = prompt("Game search", "Wildcards allowed"/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
                         search_query_v1( search );
                     }
                     else {

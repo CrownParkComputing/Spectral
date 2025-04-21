@@ -89,8 +89,8 @@ void ayumi_set_mixer(struct ayumi* ay, int index, int t_off, int n_off, int e_on
 void ayumi_set_volume(struct ayumi* ay, int index, int volume);
 void ayumi_set_envelope(struct ayumi* ay, int period);
 void ayumi_set_envelope_shape(struct ayumi* ay, int shape);
-void ayumi_process(struct ayumi* ay);
-void ayumi_process_fast(struct ayumi* ay);
+void ayumi_process(struct ayumi* ay, float output[3]); //< @r-lyeh: add output[3]
+void ayumi_process_fast(struct ayumi* ay, float output[3]); //< @r-lyeh: add output[3]
 void ayumi_remove_dc(struct ayumi* ay);
 
 #endif
@@ -223,7 +223,7 @@ int update_envelope(struct ayumi* ay) {
   return ay->envelope;
 }
 
-static void update_mixer(struct ayumi* ay) {
+static void update_mixer(struct ayumi* ay, float output[3]) { //< @r-lyeh: add output[3]
   int i;
   int out;
   int noise = update_noise(ay);
@@ -233,6 +233,7 @@ static void update_mixer(struct ayumi* ay) {
   for (i = 0; i < TONE_CHANNELS; i += 1) {
     out = (update_tone(ay, i) | ay->channels[i].t_off) & (noise | ay->channels[i].n_off);
     out *= ay->channels[i].e_on ? envelope : ay->channels[i].volume * 2 + 1;
+    output[i] = ay->dac_table[out]; //< @r-lyeh
     ay->left += ay->dac_table[out] * ay->channels[i].pan_left;
     ay->right += ay->dac_table[out] * ay->channels[i].pan_right;
   }
@@ -383,7 +384,7 @@ static double decimate(double* x) {
   return y;
 }
 
-void ayumi_process(struct ayumi* ay) {
+void ayumi_process(struct ayumi* ay, float output[3]) { //< @r-lyeh: add output[3]
   int i;
   double y1;
   double* c_left = ay->interpolator_left.c;
@@ -403,7 +404,7 @@ void ayumi_process(struct ayumi* ay) {
       y_right[0] = y_right[1];
       y_right[1] = y_right[2];
       y_right[2] = y_right[3];
-      update_mixer(ay);
+      update_mixer(ay, output);
       y_left[3] = ay->left;
       y_right[3] = ay->right;
       y1 = y_left[2] - y_left[0];
@@ -422,7 +423,7 @@ void ayumi_process(struct ayumi* ay) {
   ay->right = decimate(fir_right);
 }
 
-void ayumi_process_fast(struct ayumi* ay) {
+void ayumi_process_fast(struct ayumi* ay, float output[3]) { //< @r-lyeh: output[3]
   // by sleepdart/@wermipls
   for (int i = 0; i < DECIMATE_FACTOR; i++) {
     ay->x += ay->step;
@@ -444,6 +445,7 @@ void ayumi_process_fast(struct ayumi* ay) {
   for (int i = 0; i < TONE_CHANNELS; i += 1) {
     out = (ay->channels[i].tone | ay->channels[i].t_off) & (noise | ay->channels[i].n_off);
     out *= ay->channels[i].e_on ? envelope : ay->channels[i].volume * 2 + 1;
+    output[i] = ay->dac_table[out]; //< @r-lyeh
     ay->left += ay->dac_table[out] * ay->channels[i].pan_left;
     ay->right += ay->dac_table[out] * ay->channels[i].pan_right;
   }
@@ -483,8 +485,8 @@ void ayumi_set_registers(struct ayumi* ay, int* r) {
   }
 }
 
-float ayumi_render(struct ayumi* ay, int fastmode_on, int dc_filter_on) {
-  ( fastmode_on ? ayumi_process_fast : ayumi_process)(ay);
+float ayumi_render(struct ayumi* ay, int fastmode_on, int dc_filter_on, float output[3]) { //< @r-lyeh: add output[3]
+  ( fastmode_on ? ayumi_process_fast : ayumi_process)(ay, output);
   if (dc_filter_on) {
     ayumi_remove_dc(ay);
   }

@@ -104,7 +104,9 @@ int dir_yield(dir *d, const char *pathfile, char *name, int namelen) {
             if( is_dir && ep->d_name[0] == '.' ) continue;
 
             // add
+            if( is_dir ) strcat(name, "/");
             dir_entry de = { STRDUP(name), is_dir ? 0 : st.st_size, is_dir };
+            if( is_dir ) name[strlen(name)-1] = '\0';
             d->entry = (dir_entry*)REALLOC(d->entry, ++d->count * sizeof(dir_entry));
             d->entry[d->count-1] = de;
             // recurse
@@ -113,6 +115,17 @@ int dir_yield(dir *d, const char *pathfile, char *name, int namelen) {
     }
 #endif
     return ok;
+}
+
+static
+int dir_qsort_(const void *a1, const void *b1) {
+    const dir_entry *a = ((const dir_entry*)a1);
+    const dir_entry *b = ((const dir_entry*)b1);
+#ifdef _MSC_VER
+    return strcmpi(a->filename, b->filename);
+#else
+    return strcasecmp(a->filename, b->filename);
+#endif
 }
 
 dir *dir_open(const char *pathfile, const char *mode) {
@@ -125,6 +138,10 @@ dir *dir_open(const char *pathfile, const char *mode) {
 
     char buffer[2048];
     dir_yield(d, clean, buffer, 2048);
+
+#if 1 // ndef _WIN32
+    if(d->count) qsort(d->entry, d->count, sizeof(dir_entry), dir_qsort_);
+#endif
 
     REALLOC(clean, 0);
     return d;

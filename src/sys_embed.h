@@ -15,6 +15,8 @@ char *embedded(unsigned id, int *length) {
     char *eof = bin + len;
     char *found = bin;
 
+    if( length ) *length = 0;
+
     while( found && len >= 16 ) {
         found = (char*)memmem(found, len, watermark, 16);
         if( found ) {

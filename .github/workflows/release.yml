@@ -43,65 +43,6 @@ jobs:
           draft: true
           prerelease: false
 
-  build-windows:
-    needs: create-release
-    runs-on: windows-2019
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build Windows
-        run: ./MAKE.bat
-
-      # required for the artifact to be available on the GitHub server
-      - name: upload-unsigned-artifact
-        id: upload-unsigned-artifact
-        uses: actions/upload-artifact@v4
-        with: 
-          path: ./SpectralNaked.exe
-          #retention-days: 1
-
-      # Submit signing request to SignPath
-      - name: Sign with SignPath
-        id: optional_step_id
-        uses: signpath/github-action-submit-signing-request@v1.1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: 'spectral'
-          signing-policy-slug: 'release-signing' # 'test-signing'
-          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
-          #artifact-configuration-slug: ${{ matrix.vscode_arch }}
-          wait-for-completion: true
-          # 3h to manually approve the request
-          wait-for-completion-timeout-in-seconds: 10800
-          output-artifact-directory: signed/
-
-      - name: Concat ZXDB
-        run: |
-          ./MAKE.bat cmd copy /b/y SpectralNaked.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed unsigned-spectral.exe
-          ./MAKE.bat cmd copy /b/y signed\*.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed signed-spectral.exe
-
-      # Upload the signed artifact
-      - name: Upload Signed Windows Artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: signed-spectral.exe
-          asset_name: Spectral-${{ github.event.inputs.version }}-Signed.exe
-          asset_content_type: application/vnd.microsoft.portable-executable
-
-      # Upload the unsigned artifact
-      - name: Upload Unsigned Windows Artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: unsigned-spectral.exe
-          asset_name: Spectral-${{ github.event.inputs.version }}.exe
-          asset_content_type: application/vnd.microsoft.portable-executable
-
   build-ubuntu:
     needs: create-release
     runs-on: ubuntu-latest ## ubuntu-22.04
@@ -119,13 +60,19 @@ jobs:
         with:
           glibc: "2.17"
           target: "./Spectral.linux"
+      - name: Compress 'n Package
+        run: |
+          upx -9 SpectralNoZXDB.linux
+          dd if=src/res/embed >> SpectralNoZXDB.linux
+          dd if=src/res/zxdb/Spectral.db.gz >> SpectralNoZXDB.linux
+          dd if=src/res/embed >> SpectralNoZXDB.linux
       - name: Upload Ubuntu Artifact
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./Spectral.linux
+          asset_path: ./SpectralNoZXDB.linux
           asset_name: Spectral-${{ github.event.inputs.version }}.linux
           asset_content_type: application/x-executable
 
@@ -157,3 +104,87 @@ jobs:
           asset_path: ./source.tar.gz
           asset_name: Spectral-${{ github.event.inputs.version }}.tar.gz
           asset_content_type: application/gzip
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Windows
+        run: ./MAKE.bat
+
+      # required for the artifact to be available on the GitHub server
+      - name: upload-unsigned-artifact
+        id: upload-unsigned-artifact
+        uses: actions/upload-artifact@v4
+        with: 
+          path: ./Spectral.exe
+          #retention-days: 1
+
+      # Submit signing request to SignPath
+      - name: Sign with SignPath
+        id: optional_step_id
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: 'spectral'
+          signing-policy-slug: 'release-signing' # 'test-signing'
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          #artifact-configuration-slug: ${{ matrix.vscode_arch }}
+          wait-for-completion: true
+          # 3h to manually approve the request
+          wait-for-completion-timeout-in-seconds: 10800
+          output-artifact-directory: signed/
+
+      - name: Concat ZXDB
+        run: |
+          ./MAKE.bat cmd copy /b/y Spectral.exe               spectral-unsigned-main.exe
+          ./MAKE.bat cmd copy /b/y Spectral.exe+src\res\embed spectral-unsigned-player.exe
+          ./MAKE.bat cmd copy /b/y signed\*.exe               spectral-signed-main.exe
+          ./MAKE.bat cmd copy /b/y signed\*.exe+src\res\embed spectral-signed-player.exe
+
+      # Upload the signed artifact (2)
+      - name: Upload Signed Windows Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: spectral-signed-main.exe
+          asset_name: Spectral-${{ github.event.inputs.version }}.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      # Upload the unsigned artifact (4)
+      - name: Upload Unsigned Windows Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: spectral-unsigned-main.exe
+          asset_name: Spectral-${{ github.event.inputs.version }}-Unsigned.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      # Upload the signed artifact (2)
+      - name: Upload Signed Windows Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: spectral-signed-player.exe
+          asset_name: Spectral-${{ github.event.inputs.version }}-Player.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      # Upload the unsigned artifact (4)
+      - name: Upload Unsigned Windows Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: spectral-unsigned-player.exe
+          asset_name: Spectral-${{ github.event.inputs.version }}-Unsigned-Player.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+

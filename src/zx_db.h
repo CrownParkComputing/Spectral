@@ -49,13 +49,23 @@ bool zxdb_initmem(const char *blob, const int len) {
     if(zxdb_alloc) return false;
     if(!(blob && len)) return false;
 
-    // ensure it's our gzipped database
-    if( memcmp(blob + 0000, "\x1f\x8b\x08",3) ) return false;
-    if( memcmp(blob + 0x0A, "Spectral.db",11) ) return false;
-
     // uncompress
-    unsigned unclen;
-    char *unc = gunzip(blob, len, &unclen);
+    char *unc = NULL;
+    unsigned unclen = 0;
+
+    // ensure it's our gzipped database
+    if( !memcmp(blob + 0000, "\x1f\x8b\x08",3) ) {
+        if( !memcmp(blob + 0x0A, "Spectral.db",11) ) {
+            unc = gunzip(blob, len, &unclen);
+        }
+    }
+    if( !memcmp(blob + 0000, "Rar!",4) ) {
+        if( !memcmp(blob + 0x38, "Spectral.db",11) ) {
+            unc = unrar(blob, len, &unclen);
+        }
+    }
+
+    // check results
     if( !unc ) { alert("cannot uncompress .db file"); return false; }
 
     // parse db. insert every entry

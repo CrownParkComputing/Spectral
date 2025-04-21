@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#if defined _MSC_VER && !defined __clang__
+__declspec(no_sanitize_address)
+#endif
 char* tempvl(const char *fmt, va_list vl) {
     va_list copy;
     va_copy(copy, vl);

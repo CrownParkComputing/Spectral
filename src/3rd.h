@@ -5,7 +5,7 @@
 //#include "3rd_kissdb.h"
 
 #define TIGR_C
-//#define TIGR_DO_NOT_PRESERVE_WINDOW_POSITION // @fixme: make it centered
+#define TIGR_DO_NOT_PRESERVE_WINDOW_POSITION // @fixme: make it centered
 #define run run2
 #define border border2
 #include "3rd_tigr.h"
@@ -15,6 +15,7 @@
 #include "3rd_tigrtitle.h"
 #include "3rd_tigroskeys.h"
 #include "3rd_tigrrendermap.h"
+#include "3rd_tigrwindowed.h"
 #undef border
 #undef run
 
@@ -82,3 +83,5 @@
 
 #define DR_MP3_IMPLEMENTATION
 #include "3rd_drmp3.h"
+
+#include "3rd_arc4.h"

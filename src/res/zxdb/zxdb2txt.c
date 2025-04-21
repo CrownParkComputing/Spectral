@@ -9,6 +9,17 @@
 #define __thread __declspec(thread)
 #endif
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <unistd.h>
+#endif
+
+#include <assert.h>
+#include <stdint.h>
+#include <stdbool.h>
+#define REALLOC realloc
+
 /*
 #ifndef do_once
 #define do_once static int once = 1; for(;once;once=0)
@@ -18,7 +29,9 @@
 #undef countof
 #define countof(x) ((int)(sizeof(x) / sizeof(0[x])))
 
-#include "../../3rd.h"
+//#include "../../3rd.h"
+#define STB_SPRINTF_IMPLEMENTATION
+#include "../../3rd_stb_sprintf.h"
 #include "../../sys_xplat.h"
 #include "../../sys_string.h"
 #include "sys_db.h"

@@ -11642,6 +11642,21 @@ rar* rar_open(const char *filename, const char *mode) {
 
 	return &archive;
 }
+rar* rar_openmem(const void *bin, unsigned len) {
+	if( !bin ) return NULL;
+	if( !len ) return NULL;
+
+	static rar archive; // @fixme
+
+	dmc_unrar_return rc;
+	rc = dmc_unrar_archive_init(&archive);
+	if (rc != DMC_UNRAR_OK) return NULL;
+
+	rc = dmc_unrar_archive_open_mem(&archive, bin, (dmc_unrar_size_t)len);
+	if (rc != DMC_UNRAR_OK) return NULL;
+
+	return &archive;
+}
 unsigned rar_count(rar *r) {
 	return (unsigned)dmc_unrar_get_file_count(r);
 }
@@ -11728,3 +11743,15 @@ unsigned rar_codec(rar *r, unsigned i) { // @todo
 	return 0;
 }
 
+char *unrar(const void *inbin, unsigned inlen, unsigned *outlen) { // must rar_free()
+    if( inbin && inlen > 4 && !memcmp(inbin, "Rar!", 4) ) {
+    	rar *r = rar_openmem(inbin, inlen);
+    	if( r ) {
+			char* out = rar_extract(r, 0);
+			if(out && outlen) *outlen = rar_size(r, 0);
+    		rar_close(r);
+    		return out;
+    	}
+    }
+    return NULL;
+}

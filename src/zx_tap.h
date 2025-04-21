@@ -9,7 +9,7 @@ struct tape_block {
     unsigned count : 14; // SpecialProgram11-ITA-bootleg.tzx uses 8469. pauses are 3500, pilots use 2168, and turbo loaders tend to shorten this value
     unsigned units : 18; // most blocks specifies pulses. pa(u)se, st(o)p blocks use millisecond units though
     char level;          // polarity level: flip(0), keep(1), low(2), high(3). could be packed in 2 bits
-    char debug;          // could be packed into 3 bits: l,n,t,u,o
+    char debug;          // could be packed into 3 bits: pi(l)ot,sy(n)c,da(t)a,pa(u)se,st(o)p
 };
 #pragma pack(pop)
 
@@ -284,6 +284,7 @@ int tap_load(const void *fp, int siz) {
 #define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )
 //#define tape_play(on) ( mic_on = !!(on) )
 #define tape_playing() (mic_on && voc_len)
+#define tape_feeding() (tape_playing() && !strchr("uo", tape_peek()))
 #define tape_stop() tape_play(0)
 
 void tape_play(int on) {

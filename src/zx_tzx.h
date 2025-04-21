@@ -14,7 +14,7 @@ int tzx_load(const byte *fp, int len) {
 
     // skip header & check version
     int major=fp[8];
-    if (major>1) return 0; // unsupported version
+    //if (major>1) return 0; // unsupported version
     fp += 10;
     len -= 10;
 

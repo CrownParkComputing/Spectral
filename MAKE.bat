@@ -13,17 +13,22 @@ git pull
 if [ "$(uname)" != "Darwin" ]; then
 
 # setup (ArchLinux) ----------------------------------------------------------
-[ ! -f ".setup" ] && sudo pacman -Sy && sudo pacman -Sy --noconfirm gcc && echo>.setup
+[ ! -f ".setup" ] && [ -x "$(command -v pacman)"  ] && sudo pacman -Sy && sudo pacman -Sy --noconfirm gcc && echo>.setup
 # setup (Debian, Ubuntu, etc)
-[ ! -f ".setup" ] && sudo apt-get -y update && sudo apt-get -y install gcc upx libx11-dev gcc libgl1-mesa-dev libasound2-dev mesa-common-dev libudev-dev && echo>.setup
+[ ! -f ".setup" ] && [ -x "$(command -v apt-get)" ] && sudo apt-get -y update && sudo apt-get -y install gcc upx libx11-dev gcc libgl1-mesa-dev libasound2-dev mesa-common-dev libudev-dev && echo>.setup
 
 # compile -------------------------------------------------------------------- do not use -O3 below. zxdb cache will contain 0-byte files otherwise.
-gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
-upx -9 Spectral.linux
+echo gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
+     gcc src/app.c -I src -o ./Spectral.linux -O2 -DNDEBUG=3 -D_GNU_SOURCE -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread -ludev $* || exit
+
+cp ./Spectral.linux SpectralNoZXDB.linux
 
 # build polyfill and patch glibc, so our binary works in older linux distros as well
 # git clone https://github.com/corsix/polyfill-glibc && cd polyfill-glibc && ninja polyfill-glibc && cd ..
 # ./polyfill-glibc/polyfill-glibc --target-glibc=2.17 Spectral.linux
+
+# compress executable
+upx -9 Spectral.linux
 
 # embed zxdb -----------------------------------------------------------------
 #src/res/embed.linux Spectral.linux @SpectralEmBeDdEd
@@ -128,6 +133,7 @@ if "%1"=="test" (
 )
 
 if "%1"=="tidy" (
+    del *.res
     del *.obj
     del *.exe
     del *.pdb
@@ -145,7 +151,7 @@ if "%1"=="dev" (
     taskkill /f /im remedybg.exe > nul 2> nul
 
     call make nil /Zi %ALL_FROM_2ND% || goto error
-    copy /b/y Spectral.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
+    rem copy /b/y Spectral.exe+src\res\embed+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
 
     exit /b
 )
@@ -166,12 +172,12 @@ if "%1"=="opt" (
     call make nil /Ox /MT /DNDEBUG /GL /GF %ALL_FROM_2ND% || goto error
     rem false positives: +12
     rem where /q upx.exe && upx Spectral.exe
-    copy /y Spectral.exe SpectralNaked.exe > nul
 
+    rem copy /y Spectral.exe SpectralNaked.exe > nul
     rem false positives: +2 - crowdstrike falcon, cylance
-    copy /b/y SpectralNaked.exe+src\res\embed SpectralNoZXDB.exe > nul
+    rem copy /b/y SpectralNaked.exe+src\res\embed SpectralNoZXDB.exe > nul
     rem false positives: +1 - microsoft (defender)
-    copy /b/y SpectralNoZXDB.exe+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
+    rem copy /b/y SpectralNoZXDB.exe+src\res\zxdb\Spectral.db.gz+src\res\embed Spectral.exe > nul
 
     exit /b
 )
@@ -208,8 +214,13 @@ rem X86 use /arch:SSE2 to maximize performance
 rem X64 do not use /arch:AVX2 to maximize compatibility. see issue #4
 if "%__DOTNET_PREFERRED_BITNESS%"=="32" (set ARCH=/arch:SSE2) else (set ARCH=/arch:AVX)
 
-echo !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND%
-     !cc! src\app.c src\sys_window.cc -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND% || goto error
+
+rc /fo zxdb.res src\res\zxdb\app.rc
+
+echo !cc! src\app.c src\sys_window.cc zxdb.res -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND%
+     !cc! src\app.c src\sys_window.cc zxdb.res -I src /FeSpectral.exe !ARCH! %ALL_FROM_2ND% || goto error
+
+del zxdb.res
 
 
 for /F "skip=1 delims=" %%F in ('
@@ -240,7 +251,7 @@ ping -n 2 -w 1500 localhost > nul && rem wait 1s between 2 consecutive pings, so
 where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
 where /q rcedit-x64 && ^
 rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!" && ^
-rcedit-x64 "Spectral.exe" --set-product-version "1.07 Spectral" && ^
+rcedit-x64 "Spectral.exe" --set-product-version "1.08 Spectral" && ^
 rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico || goto error
 
 if "%__DOTNET_PREFERRED_BITNESS%"=="32" (

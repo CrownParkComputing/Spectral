@@ -42,6 +42,7 @@
 #include <stdio.h>
 unsigned char *readfile(const char *pathfile, int *size) {
     unsigned char *bin = 0;
+    if( size ) *size = 0;
     for( FILE *fp = fopen8(pathfile,"rb"); fp; fclose(fp), fp = 0) {
         fseek(fp, 0L, SEEK_END);
         size_t len = ftell(fp);

@@ -1,5 +1,16 @@
 char* tigrTitle(Tigr *win, const char *title) {
     if( title ) {
+#if DEV
+        if( strchr(title, '#'))
+            DebugBreak();
+        if( strchr(title, '$'))
+            DebugBreak();
+        if( title[sizeof("Spectral 48 - ")-1] < 0 )
+            DebugBreak();
+        if( title[sizeof("Spectral 128 - ")-1] < 0 )
+            DebugBreak();
+#endif
+
 #ifdef __APPLE__
         // @todo
 #elif defined _WIN32

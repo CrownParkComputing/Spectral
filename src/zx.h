@@ -1,7 +1,15 @@
 // known issues:
 
 // runahead
-// - bonanza bros.dsk
+// - [x] bonanza bros.dsk
+
+// .sav
+// - [x] MDA demo cannot restore the state fully (AY regs?)
+// - [ ] plyuk does flicker a lot when loaded from tape. but once restored from .sav, the flickering is gone for a while!
+
+// Woodster "overscan.tap: that LD (#8182),HL changes the int vector for the next int to end the loop 
+// so break at #8244 to get the loop value; #0C33 for 48k, #0C71 for 128k, #0E20 for +3"
+// i got #0CC3 (+144), #0D01 (+144), #0DE1 (-63)
 
 // tape buttons
 
@@ -89,9 +97,29 @@ FILE *printer;
 int do_audio = 1;
 
 // ZX
+// ----------- not serialized
+
+int ZX_PLAYER = 0; // 0:app is full featured emulator, 1:app is a small zx player with reduced functionality
+
+int ZX_BROWSER = 2; // game browser version to use, currently only v1 and v2 are supported
+int ZX_DEVTOOLS = 0; // 0: regular, 1: development tools (@todo: profiler,analyzer)
+int ZX_DEBUG = 0; // status bar, z80 disasm
+int ZX_INPUT = 1;
+
+int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
+
+int ZX_MULTIFACE = 0; // 0:(no), 1:(yes, any kind)
+int ZX_HAL10H8 = 1; // 0:(good), 1:(faulty HAL10H8 chip, as used in 128/+2 models)
+int ZX_PRINTUI = 0; // whether print UI yes/no in both screenshots and/or video records
+int ZX_ZOOM = 2; // 0..1:x1, 2:x2, 3:x3, 4:x4
+int ZX_FULLSCREEN = 0; // 0:no, 1:yes
 
 int ZX_TS;
 int ZX_FREQ;
+
+// ZX
+// ----------- serialized
+
 int ZX_RF = !DEV;
 int ZX_CRT = !DEV;
 int ZX; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
@@ -110,24 +138,14 @@ int ZX_FPSMUL = 100; // fps multiplier: 0 (max), x100 (50 pal), x120 (60 ntsc), 
 int ZX_AUTOLOCALE = 0; // yes/no: automatically patches games from foreign languages into english
 int ZX_FASTCPU = 0; // yes/no: max cpu speed
 int ZX_FASTTAPE = 1; // yes/no: max tape speed
+int ZX_LENSLOK = 0; // yes/no: lenslok glass
 
 int ZX_PENTAGON = 0; // DEV; // whether the 128 model emulates the pentagon or not
 
 int ZX_KLMODE = 0; // 0:(K mode in 48, default), 1:(L mode in 48)
 int ZX_KLMODE_PATCH_NEEDED = 0; // helper internal variable, must be init to match ZX_KLMODE
 
-int ZX_PLAYER = 0; // 0:app is full featured emulator, 1:app is a small zx player with reduced functionality
-
-int ZX_BROWSER = 2; // game browser version to use, currently only v1 and v2 are supported
-
-int ZX_DEVTOOLS = 0; // 0: regular, 1: development tools (@todo: profiler,analyzer)
-int ZX_DEBUG = 0; // status bar, z80 disasm
-int ZX_INPUT = 1;
-
-int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
-
-int ZX_MULTIFACE = 0; // 0:(no), 1:(yes, any kind)
-int ZX_HAL10H8 = 1; // 0:(good), 1:(faulty HAL10H8 chip, as used in 128/+2 models)
+int ZX_WAVES = 0;
 
 const char *ZX_FN_STR[] = {"ESC","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"};
 int ZX_FN[12+1] = {'GAME'}; // redefineable function keys. FN[0] = ESC, FN[1..12] = F1..F12
@@ -135,8 +153,6 @@ int ZX_FN[12+1] = {'GAME'}; // redefineable function keys. FN[0] = ESC, FN[1..12
 const char *ZX_PAD_STR[] = {"⭠","⭢","⭡","⭣","\4A\7","\2B\7","\5X\7","\6Y\7","LB","RB","LT","RT","LS","RS","Bk","St"};
 int ZX_PAD[16] = {TK_LEFT,TK_RIGHT,TK_UP,TK_DOWN,TK_TAB};  // redefineable gamepad keys
 int ZX_PAD_[16] = {0}; // temporary values while remapping. array not serialized
-
-int ZX_PRINTUI = 0; // whether print UI yes/no in both screenshots and/or video records. not serialized
 
 const char *ZX_FOLDER = 0;
 
@@ -166,7 +182,8 @@ const char *ZX_FOLDER = 0;
     X(ZX_FN[6]) X(ZX_FN[7]) X(ZX_FN[8]) X(ZX_FN[9]) X(ZX_FN[10]) X(ZX_FN[11]) X(ZX_FN[12]) \
     X(ZX_PAD[0]) X(ZX_PAD[1]) X(ZX_PAD[2]) X(ZX_PAD[3]) X(ZX_PAD[4]) X(ZX_PAD[5]) \
     X(ZX_PAD[6]) X(ZX_PAD[7]) X(ZX_PAD[8]) X(ZX_PAD[9]) X(ZX_PAD[10]) X(ZX_PAD[11]) \
-    X(ZX_PAD[12]) X(ZX_PAD[13]) X(ZX_PAD[14]) X(ZX_PAD[15])
+    X(ZX_PAD[12]) X(ZX_PAD[13]) X(ZX_PAD[14]) X(ZX_PAD[15]) \
+    X(ZX_ZOOM) X(ZX_FULLSCREEN) X(ZX_WAVES) X(ZX_LENSLOK)
 
 void logport(word port, byte value, int is_out);
 void outport(word port, byte value);
@@ -322,6 +339,7 @@ int file_is_supported(const char *filename, int skip) {
 #include "zx_db.h"
 #include "zx_rzx.h"
 #include "zx_ula.h"
+#include "zx_lenslok.h"
 
 // 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded, 4: ay loaded
 int loadbin_(const byte *ptr, int size, int preloader, int model) {
@@ -649,9 +667,9 @@ int loadfile(const char *file, int preloader, int model_) {
         );
 
         // this temp file is a hack for now. @fixme: implement a proper file/stream abstraction in FDI library
-        for( FILE *fp = fopen("spectral.$$$", "wb"); fp; fwrite(ptr, size, 1, fp), fclose(fp), fp = 0);
-        ok = LoadFDI(&fdd[0], "spectral.$$$", format);
-        unlink("spectral.$$$");
+        for( FILE *fp = fopen(".Spectral/$$dsk", "wb"); fp; fwrite(ptr, size, 1, fp), fclose(fp), fp = 0);
+        ok = LoadFDI(&fdd[0], ".Spectral/$$dsk", format);
+        unlink(".Spectral/$$dsk");
 
         if( ok ) {
             boot(model_ = 128|1, KEEP_MEDIA);
@@ -731,14 +749,18 @@ void port_0x00fe(byte value) {
 void port_0x7ffd(byte value) {
     if(ZX >= 128)
     if(!(page128 & 32)) { //if bit5 not locked
+
+        page128=value;
+
+        // special paging mode has higher priority in +2A/+3 models (see: port_0x1ffd)
+        if( ZX >= 210 && (page2a&1) ) return;
+
         // check bit 2-0: RAM0/7 -> 0xc000-0xffff
         MEMw[3]=MEMr[3]=RAM_BANK(value&7);
 
         //128:    check bit 4 : rom selection (ROM0/1 -> 0x0000-0x3FFF)
         //+2A/+3: check high bit of rom selection too (same as offset ROM selection to 0x8000) 1x0 101
         MEMr[0]=ROM_BANK((value & 16 ? 1 : 0) | ((page2a & 5) == 4 ? 2 : 0));
-
-        page128=value;
     }
 }
 
@@ -751,12 +773,18 @@ void ZXJoystick(int *j, int up, int down, int left, int right, int fire) {
 }
 
 void ZXJoysticks(int up, int down, int left, int right, int fire) {
-    // use SHIFT with cursor keys only under BASIC. ie, do not press SHIFT during games.
+    // 0:off,1:cursor,2:kempston,4:sinclair1,8:sinclair2,16:fuller,32:kempstonB,64:kempstonC
+    int joy = ZX_JOYSTICK;
+
+    // press SHIFT with cursor keys only under BASIC. ie, do not press SHIFT during games.
     // reasoning: conflicts with many games (Gauntlet, Emlyn Hughes, etc) that use SHIFT key actively
     bool basic = PC(cpu) < 0x4000; // && (GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() || GET_MAPPED_ROMBANK() == GET_EDITOR_ROMBANK());
 
+    // emulate cursor keys always while in basic, unless conflicting sinclairs are mapped. this is a UX decision
+    if( basic ) if( !(joy & (4|8)) ) joy |= 1;
+
     // joystick as keyboard mappings
-    int joy[][6] = {
+    int mappings[][6] = {
         // custom
         { ZX_O,ZX_P,ZX_Q,ZX_A,ZX_M,ZX_SPACE }, // OPQAM/SP
         { ZX_O,ZX_P,ZX_1,ZX_Q,ZX_M,ZX_SPACE }, // OP1QM/SP
@@ -771,17 +799,16 @@ void ZXJoysticks(int up, int down, int left, int right, int fire) {
         { ZX_6,ZX_7,ZX_9,ZX_8,ZX_0,ZX_0 }, // sinclair2
         { ZX_1,ZX_2,ZX_4,ZX_3,ZX_5,ZX_5 }, // sinclair1
         { ZX_5,ZX_8,ZX_7,ZX_6,ZX_0,ZX_0 }, // cursor
-    }, *user = joy[ZX_JOYSTICK>>8];
+    }, *user = mappings[joy>>8];
 
-    if( ZX_JOYSTICK > 255) ZXJoystick(user, up, down, left, right, fire);
-    if( ZX_JOYSTICK &  8 ) ZXJoystick(joy[countof(joy)-3], up, down, left, right, fire);
-    if( ZX_JOYSTICK &  4 ) ZXJoystick(joy[countof(joy)-2], up, down, left, right, fire);
-    if( ZX_JOYSTICK &  1 ) ZXJoystick(joy[countof(joy)-1], up, down, left, right, fire);
-    if( ZX_JOYSTICK &  1 ) if(left|right|up|down) if( basic ) ZXKey(ZX_SHIFT);
+    if( joy > 255) ZXJoystick(user, up, down, left, right, fire);
+    if( joy &  8 ) ZXJoystick(mappings[countof(mappings)-3], up, down, left, right, fire);
+    if( joy &  4 ) ZXJoystick(mappings[countof(mappings)-2], up, down, left, right, fire);
+    if( joy &  1 ) ZXJoystick(mappings[countof(mappings)-1], up, down, left, right, fire), basic && (up|down|left|right) && ZXKey(ZX_SHIFT);
 
-    kempston = ZX_JOYSTICK & 2 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
-    kempston2 = ZX_JOYSTICK & 32 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
-    fuller = (ZX_JOYSTICK & 16 ? (fire<<7)|(right<<3)|(left<<2)|(down<<1)|up : 0) ^ 255;
+    kempston = joy & 2 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
+    kempston2 = joy & 32 ? (fire<<4)|(up<<3)|(down<<2)|(left<<1)|right : 0;
+    fuller = 255 ^ (joy & 16 ? (fire<<7)|(right<<3)|(left<<2)|(down<<1)|up : 0);
 }
 
 // fdc
@@ -1112,7 +1139,7 @@ void frame_new() {
     // this section has x50 faster rate than next section.
     if( 1 ) {
         // vsync (once per frame)
-        zx_int = 1;
+        // zx_int = 1;
     }
     if( tape_inserted() ) {
         // auto-plays tape
@@ -1195,7 +1222,8 @@ void sys_audio() {
     }
 
     // tick the AY (half frequency)
-    float ay_sample = 0;
+    static float output[4] = {0,0,0,0};
+    static float ay_sample = 0;
     if( ZX >= 128 ) {
         static float ay_sample1 = 0, ay_sample2 = 0; enum { ayumi_fast = 0 };
         static byte even = 255; ++even;
@@ -1203,30 +1231,31 @@ void sys_audio() {
         if( ZX_AY == 0 ) ay_sample1 = ay_sample2 = 0; // no ay
 
         if( ZX_AY == 1 ) if( even & 1 ) {  // half frequency
-            ay38910_tick(&ay[0]), ay_sample1 = ay_sample2 = ay[0].sample;
+            ay38910_tick(&ay[0], output), ay_sample1 = ay_sample2 = ay[0].sample;
 
             if( ZX_PENTAGON )
-            ay38910_tick(&ay[1]), ay_sample2 = ay[1].sample;
+            ay38910_tick(&ay[1], output), ay_sample2 = ay[1].sample;
         }
 
         if( ZX_AY == 2 ) if(!(even & 0x7F)) { // 2/256 freq. even == 0 || even == 0x80
-            ay_sample1 = ay_sample2 = ayumi_render(&ayumi[0], ayumi_fast, 1) * 2;
+            ay_sample1 = ay_sample2 = ayumi_render(&ayumi[0], ayumi_fast, 1, output) * 2;
 
             if( ZX_PENTAGON )
-            ay_sample2 = ayumi_render(&ayumi[1], ayumi_fast, 1) * 2;
+            ay_sample2 = ayumi_render(&ayumi[1], ayumi_fast, 1, output) * 2;
         }
 
         ay_sample = (ay_sample1 + ay_sample2) * 0.5f; // both
     }
 
     if( do_audio && sample_ready ) {
+        output[3] = buzz.sample; // for 48K vis
+
         float master = 0.98f * !!ZX_AY; // @todo: expose ZX_AY_VOLUME / ZX_BEEPER_VOLUME instead
         float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
-
         float digital = mix(0.5); // 70908/44100. 69888/44100. // ZX_TS/s); 22050 11025 44100
         sample += digital * 1; // increase volume
 
-        audio_queue(sample);
+        audio_queue(sample, output);
     }
 }
 
@@ -1741,9 +1770,12 @@ byte inport_(word port) {
                     autoplay_last = ticks, autoplay_freq = 0;
 
                     // @fixme: wont stop tape or will burst CPU at max speed after load
-                    // *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
+                    // *ViajeAlCentroDeLaTierra (300Hz while redefining keys)
+                    // *DynamiteDux (500Hz while playing intro)
+                    // *OutRunEuropa (188Hz while displaying stop the tape message)
+                    // beware of AbadiaDelCrimen (slowest Hz while loading probably, anti-turbo)
 
-                    if( autoplay_numreads <= 9 ) { // 9Hz turrican, 228Hz outrun europa
+                    if( autoplay_numreads <= 9 ) { // 9Hz turrican, 16Hz plyuk, 228Hz outrun europa
                         ++autostop;
                     }
                     if( autoplay_numreads > 200 ) { // 273Hz turrican
@@ -1765,6 +1797,7 @@ byte inport_(word port) {
     // - Cobra (original release only, the Hit Squad re-release does not use the floating bus)
     // - Sidewize
     // - Short Circuit
+    if( ZX_PENTAGON ) return 0xFF;
     if( ZX >= 210 ) { // if +2A/+3 case (see: http://sky.relative-path.com/zx/floating_bus.html)
         if( (1 + (4 * port) && port < 0x1000) ) { // if in ports 1, 5, 9, 13 ... 4093
             if( !(page128 & (1<<5)) ) { // if paging is enabled

@@ -987,12 +987,13 @@ int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t
 
 int ui_find_index(unsigned glyph) { // @todo: make it dichotomic, faster
     if( glyph )
-    for( int i = 0; glyph >= theFont[i][0]; ++i ) {
+    for( int i = 0; theFont[i][0]; ++i ) {
         if( glyph == theFont[i][0] ) {
             // if( theFont[i][0] == ' ' ) printf("glyph[' ']==index[%d]\n", i);
             // if( theFont[i][0] == 'i' ) printf("glyph['i']==index[%d]\n", i);
             return i;
         }
+        if( theFont[i][0] > glyph ) break;
     }
     return -1;
 }
@@ -1573,6 +1574,10 @@ int ui_dialog_render(Tigr *dialog, float wheel) {
                 void on_cmd(unsigned, const char *);
                 on_cmd(bak.cmd, bak.args);
             }
+        }
+        else {
+            // abort
+            if( key_pressed(TK_ESCAPE) || mouse().rb ) ui_dialog_new(NULL);
         }
     }
 

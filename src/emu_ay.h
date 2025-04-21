@@ -258,7 +258,7 @@ void ay38910_reset(ay38910_t* ay);
 // perform an IO request
 uint64_t ay38910_iorq(ay38910_t* ay, uint64_t pins);
 // tick the AY-3-8910, return true if a new sample is ready
-bool ay38910_tick(ay38910_t* ay);
+bool ay38910_tick(ay38910_t* ay, float output[4]); //< @r-lyeh output[4]
 // helper functions to directly write register values and update dependent state, not intended for regular operation!
 void ay38910_set_register(ay38910_t* ay, uint8_t addr, uint8_t data);
 void ay38910_set_addr_latch(ay38910_t* ay, uint8_t addr);
@@ -428,7 +428,9 @@ void ay38910_reset(ay38910_t* ay) {
     _ay38910_restart_env_shape(ay);
 }
 
-bool ay38910_tick(ay38910_t* ay) {
+bool ay38910_tick(ay38910_t* ay,
+    float output[3+1] //< @r-lyeh
+) {
     ay->tick++;
     if ((ay->tick & 7) == 0) {
         // tick the tone channels
@@ -487,10 +489,15 @@ bool ay38910_tick(ay38910_t* ay) {
                 vol = _ay38910_volumes[ay->env.shape_state];
             }
             int vol_enable = (chn->bit|chn->tone_disable) & ((ay->noise.rng&1)|(chn->noise_disable));
+#if 0
             if (vol_enable) {
                 sm += vol;
             }
         }
+#else //< @r-lyeh
+            sm += (output[i] = vol * !!vol_enable);
+        }
+#endif
         ay->sample = _ay38910_dcadjust(ay, sm) * ay->mag;
         return true; // new sample is ready
     }

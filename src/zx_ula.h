@@ -38,7 +38,7 @@ rgba ZXPalettes[][64] = {
     //rgb(0xFF,0xFF,0xFF), // spectral
     rgb(0x37*4,0x3b*4,0x34*4), // based on jussi's
     },
-    // Richard Atkinson's colors (zx16/48)
+    // [1] Richard Atkinson's colors (zx16/48)
     {
     rgb(0x06,0x08,0x00),
     rgb(0x0D,0x13,0xA7),
@@ -58,7 +58,7 @@ rgba ZXPalettes[][64] = {
     rgb(0xEE,0xEB,0x46),
     rgb(0xFD,0xFF,0xF7)
     },
-    // what pc emulators use
+    // [2] what most pc emulators use
     {
     rgb(0x00,0x00,0x00), // normal: black,blue,red,pink,green,cyan,yellow,white
     rgb(0x00,0x00,0xC0), // note: D7 seems fine too
@@ -78,7 +78,7 @@ rgba ZXPalettes[][64] = {
     rgb(0xFF,0xFF,0x00),
     rgb(0xFF,0xFF,0xFF),
     },
-    // jussi ala-konni's
+    // [3] jussi ala-konni's
     {
     rgb(0x00*4,0x00*4,0x00*4),
     rgb(0x00*4,0x00*4,0x28*4),
@@ -97,7 +97,7 @@ rgba ZXPalettes[][64] = {
     rgb(0x3f*4,0x3b*4,0x00*4),
     rgb(0x3f*4,0x3b*4,0x37*4),
     },
-    // mrmo's goblin22 adapted. just for fun
+    // [4] mrmo's goblin22 adapted. just for fun
     {
     rgb(84/7,77/7,84/7), // made it x7 darker
     rgb(37,47,64),
@@ -117,7 +117,7 @@ rgba ZXPalettes[][64] = {
     rgb(244,220,109),
     rgb(245,238,228)
     },
-    // pc emulators, b/w version
+    // [5] pc emulators, b/w version
     {
     gray(0x00,0x00,0x00),
     gray(0x00,0x00,0xC0),
@@ -137,7 +137,7 @@ rgba ZXPalettes[][64] = {
     gray(0xFF,0xFF,0x00),
     gray(0xFF,0xFF,0xFF),
     },
-    // pc emulators, b/w version, inverted y+c
+    // [6] pc emulators, b/w version, tv with inverted y+c signal
     {
     gray(0xFF^0x00,0xFF^0x00,0xFF^0x00),
     gray(0xFF^0x00,0xFF^0x00,0xFF^0xC0),
@@ -253,11 +253,12 @@ void draw_8_pixels(rgba *texture, rgba *begin, rgba *end, byte pixel, byte attr)
     if( /*(texture + 7) >= begin &&*/ (texture + 7) < end ) texture[7] = pixel & 0x01 ? fg : bg;
 }
 
-void run(int do_sim, int TS, int x, int y) {
-    if(TS<=0) return;
+void run(int do_sim, int do_int, int TS, int x, int y, TPixel *pix) {
+    if(do_sim) zx_int = do_int;
+    if(TS<=0) { printf("error in scanline, TS=%d\n", TS); return; }
 
     extern Tigr* app;
-    rgba *texture = y >= 0 && y < _240 ? (rgba*)&app->pix[x + y * _320] : NULL;
+    rgba *texture = pix && y >= 0 && y < _240 ? (rgba*)&pix[x + y * _320] : (rgba*)NULL;
     rgba *begin = (rgba*)&app->pix[0];
     rgba *end = (rgba*)&app->pix[_319 + _239 * _320];
 
@@ -285,7 +286,7 @@ void run(int do_sim, int TS, int x, int y) {
         }
 
         if( ZX_PENTAGON ) is_contended = 0; // disable further contention
-        if( ZX_TURBOROM && mic_on ) is_contended = 0;
+        if( ZX_TURBOROM && tape_feeding() ) is_contended = 0;
 
         #ifdef DEBUG_SCANLINE
         //memset32(texture - x, ~0u, _320);
@@ -293,25 +294,27 @@ void run(int do_sim, int TS, int x, int y) {
         #endif
 
         // RF: misalignment. also glitches faster at max cpu speed
-        *texture = ZXPalette[ZXBorderColor];
-        enum { BAD = 8, POOR = 32, DECENT = 256 };
-        int shift0 = !ZX_RF ? 0 : (rand()<(RAND_MAX/(ZX_FASTCPU?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
-        texture += shift0;
+        if( ZX_RF && texture ) {
+            enum { BAD = 8, POOR = 32, DECENT = 256 };
+            int shift0 = (rand()<(RAND_MAX/(ZX_FASTCPU?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
+            *texture = ZXPalette[ZXBorderColor];
+            texture += shift0;
+        }
     }
     if( DEV && ZX_DEVTOOLS && key_pressed(TK_TAB) ) pixels = attribs = 0;
 
     int P = 0; // paper tick
-    static int B = 0; // border tick
+    static int B = 0; // border tick // static uint64_t B = 0;
     static byte fetch[4] = {0}; // pixel 0x4000, attrib 0x5800, pixel 0x4001, attrib 0x5801, IDLE, IDLE, IDLE, IDLE ...
 
     while( TS-- ) {
 
         // see: https://sinclair.wiki.zxnet.co.uk/wiki/Floating_bus
         if( is_paper ) {
-            /**/ if(P == 3)   *(floating_bus = fetch+0) = pixels ? *pixels++ : 0xFF;
-            else if(P == 4)   *(floating_bus = fetch+1) = attribs ? *attribs++ : ZXBorderColor;
-            else if(P == 5)   *(floating_bus = fetch+2) = pixels ? *pixels++ : 0xFF;
-            else if(P == 6) { *(floating_bus = fetch+3) = attribs ? *attribs++ : ZXBorderColor;
+            /**/ if(P == 3-3)   *(floating_bus = fetch+0) = pixels ? *pixels++ : 0xFF;
+            else if(P == 4-3)   *(floating_bus = fetch+1) = attribs ? *attribs++ : ZXBorderColor;
+            else if(P == 5-3)   *(floating_bus = fetch+2) = pixels ? *pixels++ : 0xFF;
+            else if(P == 6-3) { *(floating_bus = fetch+3) = attribs ? *attribs++ : ZXBorderColor;
                 // Output 16 pixels every 8 cycles
                 if( texture )
                     draw_8_pixels( (texture += 8) - 8, begin, end, fetch[0], fetch[1]),
@@ -321,7 +324,7 @@ void run(int do_sim, int TS, int x, int y) {
             P = (P+1) & 7;
         } else {
             floating_bus = NULL;
-            if( (B++ & 3) == 0 )
+            if( (B++/*ticks*/ & 3) == 1 )
                 if( texture )
                     draw_8_pixels( (texture += 8) - 8, begin, end, 0xFF, ZXBorderColor);
         }
@@ -342,7 +345,7 @@ void run(int do_sim, int TS, int x, int y) {
             if( Ys ) { // this happens on the first tstate (T1) of any instruction fetch, memory read or memory write operation.
                 const uint16_t addr = Z80_GET_ADDR(pins);
 
-                if( ZX >= 210 ? pins & Z80_MREQ : pins & Z80_MREQ || !floating_bus ) {
+                if( ZX >= 210 ? pins & Z80_MREQ : pins & (Z80_MREQ|Z80_IORQ) || !floating_bus ) {
                     if( pins & Z80_IORQ ) // (Z80_M1|Z80_MREQ|Z80_IORQ|Z80_RD|Z80_WR|Z80_RFSH);
                     if( (addr & 0x0001) == 0x0000 ) continue;
                     if( (addr & 0xC000) == 0x4000 ) continue; // equivalent to (addr >= 0x4000 && addr < 0x8000)
@@ -372,8 +375,12 @@ void run(int do_sim, int TS, int x, int y) {
             }
         }
 
-
         tape_ticks += !!mic_on; // tick tape after contention, otherwise turborom will break
+
+        // clear INT pin after 32/36 ticks
+        if (int_counter > 0) {
+            if(!--int_counter) z80_interrupt(&cpu, 0);
+        }
 
         if (zx_int /*  && cpu.step == 2 && IFF1(cpu) */ ) { // adjust
             zx_int = 0;
@@ -382,17 +389,15 @@ void run(int do_sim, int TS, int x, int y) {
             z80_interrupt(&cpu, 1);
             B = 0;
 
-            // hold the INT pin for 32 ticks
-            int_counter = 32; // - (4 - (tick & 3)); // 23?
+            // hold the INT pin for 32/36 ticks (or 37 if late timings)
+            // most models start in late_timings, and convert into early_timings as they heat up
+            // however, +2 is always late_timings.
+            int late = 1;
+            int_counter = 32 + (4+late) * (ZX == 128 || ZX == 200 || ZX_PENTAGON);
 
             RZX_tick();
         }
         
-        // clear INT pin after 32 ticks
-        if (int_counter > 0) {
-            if(!--int_counter) z80_interrupt(&cpu, 0);
-        }
-
         pins = z80_tick(&cpu, pins);
         pins = transact(pins);
     }
@@ -507,98 +512,75 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
     // notify new frame
     if(do_sim) frame_new();
 
-    // NO RENDER
-    if( drawmode < 0 ) {
-        run(do_sim,ZX_TS,0,-1);
-        return;
-    }
+    // drawmode < 0 (no render), == 0 (frame based), > 0 (scanline based)
+    TPixel *pix = drawmode < 0 ? NULL : app->pix;
 
-    // FRAME RENDER
-    if( drawmode == 0 ) {
-        run(do_sim,ZX_TS,0,0);
-        return;
-    }
+    // timing constants YY(vertical scanline), XX(horizontal T), PP(horizontal T for Pentagon), BR(border)
+    #define ENUM(a,b,c,d,...) ifdef(DEV,static int, enum{) a,b,c,d ifndef(DEV,}); ifdef(DEV,__VA_ARGS__)
+    ENUM( YY = 0, XX = 27, ZZ = 0, BR = 32,
+        if( ZX_DEVTOOLS ) {
+        if( key_repeat('Y') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY = (YY+1) % 80, XX, ZZ, BR);
+        if( key_repeat('X') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX = (XX+1) % (228), ZZ, BR);
+        if( key_repeat('Z') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX, ZZ = (ZZ+1) % (228), BR);
+        if( key_repeat('B') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX, ZZ, BR = (BR+1) % ((228-128)/2));
+        }
+    );
 
-    // first scanline
-    // most models start in late_timings, and convert into early_timings as they heat up. however, +2 is always late_timings.
-    // to simplify, we emulate late_timings all the time, by an additional single TS to the initial paper scanline.
+    // tests used:
+    // debugbreak[48/128/Plus3/Pentagon].z80 to test the scanline Y/INT placement
+    // megashock[48/128].z80 to test the frame length (69888/70908)
+    // bonanzabros.dsk wont work if INT is not placed in scanlineY >= 3
 
-    enum { _24_8 = _24 + 8 };
- 
     // SCANLINE RENDER
+    // ensure INT code is at end of frame
     if( ZX_PENTAGON ) {
         // Pentagon: see https://worldofspectrum.net/rusfaq/index.html
         // 320 scanlines = 16 vsync + 64  upper + 192 paper + 48 bottom
         // each scanline = 32 hsync + 36 border + 128 paper + 28 border = 224 TS/scanline
         // total = (16+64+192+48) * 224 = 320 * (32+36+128+28) = 320 * 224 = 71680 TS
-        static ifndef(DEV,const) int TS = 224, YY = 319, XX = 186, BR = 32; // XX = 24
-#if DEV
-        if( ZX_DEVTOOLS ) {
-        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 320, XX, BR);
-        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
-        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
-        }
-#endif
 
-        for( int y = 0; y <  80; ++y ) run(do_sim,TS,0,y-(80-_24_8));
-        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24_8+y),run(do_sim,128,BR*2,_24_8+y),run(do_sim,TS-128-BR,(128+BR)*2,_24_8+y);
-        for( int y = 0; y <  47; ++y ) run(do_sim,TS,0,_24_8+192+y);
+        enum { _32 = _24 + 8 }; // _24 + OFFSET_Y };
 
-        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
-        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+        enum { TS = 224, XX = 188, YY = 319 };
+        for( int y = 0; y <   80; ++y ) run(do_sim,0,TS,0,y-(80-_32),pix);
+        for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_32+y,pix),run(do_sim,0,128,BR*2,_32+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_32+y,pix);
+        for( int y = 0; y < 48-1; ++y ) run(do_sim,0,TS,0,_32+192+y,pix);
+        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
 
-#if 0
-        // blank remaining lines.
-        // we could maybe scroll down the whole bitmap by 8px (there are hidden lines in the upper section); run() would need to be modified.
-        int excess = 320 - _240;
-        if( excess > 0 ) {
-        unsigned *bottom = (unsigned *)&app->pix[0+(_240-excess)*_320];
-        memset32(bottom,ZXPalette[0],_320*excess);
-        }
-#endif
     }
     else if( ZX < 128 ) {
         // 48K: see https://wiki.speccy.org/cursos/ensamblador/interrupciones http://www.zxdesign.info/interrupts.shtml
         // 312 scanlines = 16 vsync + 48  upper + 192 paper + 56 bottom
         // each scanline = 48 hsync + 24 border + 128 paper + 24 border = 224 TS/scanline
         // total = (16+48+192+56) * 224 = 312 * (48+24+128+24) = 312 * 224 = 69888 TS
-        static ifndef(DEV,const) int TS = 224, YY = 0, XX = 29+4, BR = 32; // YY=311,XX=223
-#if DEV
-        if( ZX_DEVTOOLS ) {
-        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 312, XX, BR);
-        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
-        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
-        }
-#endif
 
-        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
-        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+        enum { TS = 224, /*XX = 25,*/ YY = 0 };
+        for( int y = 1; y <   64; ++y ) run(do_sim,0,TS,0,y-(64-_24),pix);
+        for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_24+y,pix),run(do_sim,0,128,BR*2,_24+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_24+y,pix);
+        for( int y = 0; y <   56; ++y ) run(do_sim,0,TS,0,_24+192+y,pix);
+        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
 
-        for( int y = 1; y <  64; ++y ) run(do_sim,TS-(y==63),0,y-(64-_24));
-        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24+y),run(do_sim,128,BR*2,_24+y),run(do_sim,TS-128-BR,(128+BR)*2,_24+y);
-        for( int y = 0; y <  56; ++y ) run(do_sim,TS+(y==55),0,_24+192+y);
+        // parapshok will break if INT is misplaced to another line
 
     } else {
         // 128K:https://wiki.speccy.org/cursos/ensamblador/interrupciones https://zx-pk.ru/threads/7720-higgins-spectrum-emulator/page4.html
         // 311 scanlines = 15 vsync + 48  upper + 192 paper + 56 bottom
         // each scanline = 48 hsync + 26 border + 128 paper + 26 border = 228 TS/scanline
-        // total = (63+192+56) * 228 = 311 * (48+26+128+26) = 311 * 228 = 70908 TS
-        static ifndef(DEV,const) int TS = 228, YY = 0, XX = 29+4, BR = 32; // XX = 24, BR = 26
-#if DEV
-        if( ZX_DEVTOOLS ) {
-        if( key_repeat('Y') ) printf("YY:%d XX:%d BR:%d\n", YY = (YY+1) % 311, XX, BR);
-        if( key_repeat('X') ) printf("YY:%d XX:%d BR:%d\n", YY, XX = (XX+1) % TS, BR);
-        if( key_repeat('B') ) printf("YY:%d XX:%d BR:%d\n", YY, XX, BR = (BR+1) % ((TS-128)/2));
-        }
-#endif
+        // total = (15+48+192+56) * 228 = 311 * (48+26+128+26) = 311 * 228 = 70908 TS
 
-        if( do_sim ) zx_int = 0; run(do_sim,XX,0,-1);
-        if( do_sim ) zx_int = 1; run(do_sim,TS-XX,0,-1);
+        enum { TS = 228, XX=29,/*XX = 28, BR = 31,*/ YY = 2 }; // XX=27,BR=32
+        for( int y = 1; y <   63; ++y ) run(do_sim,0,TS,0,y-(63-_24),pix);
+        for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_24+y,pix),run(do_sim,0,128,BR*2,_24+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_24+y,pix);
+        for( int y = 0; y <   56; ++y ) run(do_sim,0,TS,0,_24+192+y,pix);
+                                        run(do_sim,0,2,0,-1,pix); //< @fixme: why do 2 additional TS fix bonanzabros.dsk? XX(29) vs hsync(26) issue?
+        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
 
-        for( int y = 1; y <  63; ++y ) run(do_sim,TS-(y==62),0,y-(63-_24));
-        for( int y = 0; y < 192; ++y ) run(do_sim,BR,0,_24+y),run(do_sim,128,BR*2,_24+y),run(do_sim,TS-128-BR,(128+BR)*2,_24+y);
-        for( int y = 0; y <  56; ++y ) run(do_sim,TS+(y==55),0,_24+192+y);
+        // see: megashock128, bonanzabros.dsk, borderbreak128.sna
+        // sidewize.tap will freeze, floatspy.tap will break if INT is misplaced to another line
     }
+
+    if( drawmode <= 0 )
+        return;
 
 #if 1
     // detect ZX_RF flip-flop
@@ -629,7 +611,8 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
 
     // emulate faulty ZX_HAL10H8 chip as used in 128/+2 models
     // http://www.worldofspectrum.org/forums/showthread.php?t=38284
-    if( (I(cpu) & 0xC0) && ZX_HAL10H8 && (ZX == 128 || ZX == 200) ) {
+    if( ZX_HAL10H8 )
+    if( (I(cpu) & 0xC0) && (ZX == 128 || ZX == 200) ) {
         int bank = (page128 & 7);
         int is_contended_bank = bank & 1;
         if( I(cpu) >= 0x40 && I(cpu) < 0x80 ) PC(cpu) = 0;

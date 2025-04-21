@@ -83,21 +83,17 @@ int export_state(FILE *fp) {
     if( ZX >= 210 ) put16(0x1ffd), put16(page2a); // +2A, +3
     if( ZX >= 128 ) put16(0x7ffd), put16(page128); // any 128
 
-    if( ZX >= 128 ) put16(65533), put16(254); // dump 2nd ay (turbosound)
-    if( ZX >= 128 ) for( int i = 0; i < 16; ++i ) { // any 128
-                        int reg = ( ay_current_reg[1] + i + 1 ) & 15;
-                        put16(0xfffd), put16(reg);
-                        put16(0xbffd), put16(ay_registers[1][reg]);
+    if( ZX >= 128 ) put16(65533), put16(255-turbosound^1); // dump alt ay (turbosound)
+    if( ZX >= 128 ) for( int i = 0, reg; i < 16; ++i ) { // any 128
+                        put16(0xfffd), put16(reg = (ay_current_reg[turbosound^1] + i + 1 ) & 15);
+                        put16(0xbffd), put16(ay_registers[turbosound^1][reg]);
                     }
 
-    if( ZX >= 128 ) put16(65533), put16(255); // dump 1st ay
-    if( ZX >= 128 ) for( int i = 0; i < 16; ++i ) { // any 128
-                        int reg = ( ay_current_reg[0] + i + 1 ) & 15;
-                        put16(0xfffd), put16(reg);
-                        put16(0xbffd), put16(ay_registers[0][reg]);
+    if( ZX >= 128 ) put16(65533), put16(255-turbosound); // dump active ay (turbosound)
+    if( ZX >= 128 ) for( int i = 0, reg; i < 16; ++i ) { // any 128
+                        put16(0xfffd), put16(reg = (ay_current_reg[turbosound] + i + 1 ) & 15);
+                        put16(0xbffd), put16(ay_registers[turbosound][reg]);
                     }
-
-    if( ZX >= 128 ) put16(65533), put16(255-turbosound); // select current ay
 
     if( ZX_ULAPLUS && ulaplus_enabled ) {
         put16(0xBF3B), put16( 64 ); // mode group
