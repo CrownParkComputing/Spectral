@@ -25,13 +25,14 @@ int             tape_issue2; \
 struct tape_block q;
 VOC_DEFINES
 
-char tape_preview[_320+1];
+char tape_preview[1000+1];
 struct tape_block* voc;
 
 // --- voc rendering
 
 #define tape_push(d,l,c,u) do { assert((u)>=0); \
     voc[voc_len++] = ((struct tape_block){c,u,l,2[d] }); } while(0)
+//#define tape_pop(numbits) do { int bits = (numbits); if( bits <= voc_len ) voc_len -= bits; else voc_len = 0; } while(0) 
 
 void tape_render_polarity(unsigned level) {
     // MASK(+), Basil(+), ForbiddenPlanetV1(-), ForbiddenPlanetV2(-), Wizball(pzxtools).tap(+), LoneWolf3SideA128(+), LoneWolf3SideB48(+), KoronisRift48(+)
@@ -80,8 +81,8 @@ void tape_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, 
     for( ; bytes-- > 0; ++data ) for( int i = 0; i < 8; ++i ) {
         tape_push("data", tape_level, bitrepeat, ((*data) & (1<<(7-i)) ? one : zero)); // da(t)a
     }
-    // truncate bits within last byte if needed
-    voc_len -= 8 - bits;
+    // truncate excess bits within last byte if needed
+    voc_len -= 8 - bits; // tape_pop(8 - bits); // 
 }
 
 void tape_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len, unsigned pilot, unsigned sync1, unsigned sync2, unsigned zero, unsigned one, unsigned pause) {
@@ -137,13 +138,13 @@ void tape_finish() {
             voc[i].units = 5000;
 
     // create tape preview in 2 steps
-    // 1) any kind of noise is a dotted line.
-    // 2) ensure silences are clearly blank over dots from step 1.
-    for( int i = 0; i <= _320; ++i ) tape_preview[i] = (i & 1);
+    // 1) any kind of noise is a dotted line (==1)
+    // 2) ensure silences (==0) are clearly blank over dots from step 1.
+    for( int i = 0; i <= 1000; ++i ) tape_preview[i] = 1;
     for( unsigned pos = 0; pos < voc_len; ++pos ) {
-        unsigned pct = (float)pos * _320 / (voc_len - 1);
-        int silence = 1 * !!strchr("uo", voc[pos].debug); // pa(u)se, st(o)p
-        for( int i = 0; i < silence; ++i ) tape_preview[pct - i * (pct >= i)] = 0;
+        unsigned pct = pos * 1000.0 / (voc_len + !voc_len);
+        int silence = 3 * !!strchr("uo", voc[pos].debug); // pa(u)se, st(o)p
+        for( int i = 0; i < silence; ++i ) if(pct - i * (pct >= i) >= 0) tape_preview[pct - i * (pct >= i)] = 0;
     }
 }
 
@@ -279,6 +280,7 @@ int tap_load(const void *fp, int siz) {
 
 #define tape_level() (!!mic)
 #define tape_inserted() (voc_len > LEAD_SILENCE) // (!!voc_len)
+#define tape_seeki(at) ( voc_pos = voc && voc_len && at >= 0 && at < voc_len ? at : voc_pos )
 #define tape_seekf(at) ( voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos )
 #define tape_peek() ( voc_pos < voc_len ? voc[voc_pos].debug : ' ' )
 #define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )

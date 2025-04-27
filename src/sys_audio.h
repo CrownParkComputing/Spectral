@@ -7,16 +7,22 @@
     audio_buffer2[audio_write  ] = samples[1]; \
     audio_buffer3[audio_write  ] = samples[2]; \
     audio_buffer4[audio_write  ] = samples[3]; \
+    audio_buffer5[audio_write  ] = samples[4]; \
+    audio_buffer6[audio_write  ] = samples[5]; \
+    audio_buffer7[audio_write  ] = samples[6]; \
     audio_bufferA[audio_write++] = sample; \
     if (audio_write >= AUDIO_BUFFERLEN) audio_write = 0, saudio_push(audio_bufferA, AUDIO_BUFFERLEN); \
 } while(0)
 
 int audio_write = 0;
-float audio_buffer1[AUDIO_BUFFERLEN] = {0};
-float audio_buffer2[AUDIO_BUFFERLEN] = {0};
-float audio_buffer3[AUDIO_BUFFERLEN] = {0};
-float audio_buffer4[AUDIO_BUFFERLEN] = {0};
-float audio_bufferA[AUDIO_BUFFERLEN] = {0};
+float audio_buffer1[AUDIO_BUFFERLEN] = {0}; // beeper
+float audio_buffer2[AUDIO_BUFFERLEN] = {0}; // AY1, ch0
+float audio_buffer3[AUDIO_BUFFERLEN] = {0}; // AY1, ch1
+float audio_buffer4[AUDIO_BUFFERLEN] = {0}; // AY1, ch2
+float audio_buffer5[AUDIO_BUFFERLEN] = {0}; // AY2, ch0
+float audio_buffer6[AUDIO_BUFFERLEN] = {0}; // AY2, ch1
+float audio_buffer7[AUDIO_BUFFERLEN] = {0}; // AY2, ch2
+float audio_bufferA[AUDIO_BUFFERLEN] = {0}; // all channels
 
 void sys_audio();
 

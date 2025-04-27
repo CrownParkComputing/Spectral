@@ -1,26 +1,20 @@
 // known issues:
 
-// runahead
-// - [x] bonanza bros.dsk
-
 // .sav
 // - [x] MDA demo cannot restore the state fully (AY regs?)
-// - [ ] plyuk does flicker a lot when loaded from tape. but once restored from .sav, the flickering is gone for a while!
+// - [x] tape marker not very exact in turborom medias
+// - [x] may be corrupt. repro steps: many save/loads (see: jacknipper2 menu, mask3 menu, RAIDERS.ROM screen$)
+// media:
+// - [x] scl not being saved on exit (borderbreak)
+// auto-locale:
+// - [x] will corrupt medias with checksums (like tap files)
 
 // Woodster "overscan.tap: that LD (#8182),HL changes the int vector for the next int to end the loop 
-// so break at #8244 to get the loop value; #0C33 for 48k, #0C71 for 128k, #0E20 for +3"
+// so break at #8244 to get the loop value; #0C33 for 48k (14L), #0C71 for 128k (13L), #0E20 for +3 (15L)"
 // i got #0CC3 (+144), #0D01 (+144), #0DE1 (-63)
-
-// tape buttons
 
 // tape
 // - red/cyan tape freq bars
-
-// quickload
-// - crash by pressing F12 after main window is displayed
-
-// media
-// - scl not being saved on exit (borderbreak)
 
 // pzx
 // - load_flowcontrol\HollywoodPoker.pzx
@@ -31,43 +25,41 @@
 // - thumbnail() wont decode ifl/mlt/mc
 
 // zxdb
-// - infos get lost between different .sav sessions
+// - [x] infos get lost between different .sav sessions
 // - JACKNIP.TAP ; difficult to get it right without hyphenation. best we could do for now is search JACKNIP%
 // - instructions: utf8 bom
 // - maps: battle valley, river raid
+// - indianajones.dsk
+// - paperboy2-sidea(amstrad).dsk / sideb(zx)
 
 // embedded zxplayer
 // - cant load zip/rar files because FILE *fp is not pointing at seek pos
 
-// trdos+L mode
+// trdos
+// - trdos+L mode
+// - page in .z80 not handled
 
-// 128/+2/+2A/+3:
-// - parapshock should break while loading (POKE STREAM #254); it doesnt
+// 128/+2:
+// - parapshock should only load in 48 mode. it loads fine in 128/+2 for some reason (POKE STREAM #254)
 // .ay files:
 // - could use left/right keys to change tracks
 // - could fill vram so it displays author, filename, etc datas. or use ui_notify() at least
 // - felt the 0x8000/0x10000 magic numbers in zx_ay can be removed if we switch vars to be unsigned
-// .dsk files:
-// - no offset-info\r\n extension. see: mercs(samdisk), paperboy2
 // .sav files:
-// - // may be corrupt. repro steps: many save/loads (see: jacknipper2 menu, mask3 menu, RAIDERS.ROM screen$)
 // - may be corrupt. repro steps: save during tape load or disk load
-// - tape marker not very exact in turborom medias
 // altroms:
 // - donkeykong(erbe) (128): no ay (wrong checksum?)
 // - bloodbrothers (128): no ay (wrong checksum?)
 // - travelwithtrashman (128): crash (wrong checksum?)
 // - r-type128-km-nocheats (lg18v07 + usr0): r tape err (no turbo) or crash (turbo)
 // - lg18,gw03,sebasic fail in the games above. jgh v0.77 seems to work. old sebasic partially too
-// auto-locale:
-// - will corrupt medias with checksums (like tap files)
 // ay:
 // - Fuller Box AY chip is clocked at 1.63819 MHz
 // - ABC/ACB modes when stereo is enabled
 // beeper:
-// - fix: indiana jones last crusade
-// - p-47 in-game click sound (ayumi? beeper?). double check against real zx spectrum
+// - indiana jones last crusade. what was the problem again?
 // - OddiTheViking128
+// - p-47 in-game click sound (ayumi? beeper?). double check against real zx spectrum
 // disciple/plusd/mgt (lack of):
 // - zxoom.z80
 // keyboard:
@@ -85,12 +77,10 @@
 // - linux: no mouse clip
 // - osx: no mouse clip
 // - osx: retina too heavy?
-// trdos
-// - page in .z80 not handled
 // turborom:
 // - x4,x6 modes not working anymore. half bits either.
 // tzx:
-// - flow,gdb
+// - flow,gdb(wip)
 
 FILE *printer;
 
@@ -132,7 +122,7 @@ int ZX_AUTOPLAY = 0; // yes/no: auto-plays tapes based on #FE port reads
 int ZX_AUTOSTOP = 0; // yes/no: auto-stops tapes based on #FE port reads
 int ZX_RUNAHEAD = 0; // yes/no: improves input latency
 int ZX_MOUSE = 1; // yes/no: kempston mouse
-int ZX_ULAPLUS = 1; // yes/no: ulaplus 64color mode
+int ZX_ULAPLUS = 2; // 0:classic, 1: ulaplus 64color mode, 2: ulaplus/ultrawide
 int ZX_GUNSTICK = 0; // yes/no: gunstick/lightgun @fixme: conflicts with kempston & kmouse
 int ZX_FPSMUL = 100; // fps multiplier: 0 (max), x100 (50 pal), x120 (60 ntsc), x200 (7mhz), x400 (14mhz)
 int ZX_AUTOLOCALE = 0; // yes/no: automatically patches games from foreign languages into english
@@ -154,10 +144,21 @@ const char *ZX_PAD_STR[] = {"⭠","⭢","⭡","⭣","\4A\7","\2B\7","\5X\7","\6Y
 int ZX_PAD[16] = {TK_LEFT,TK_RIGHT,TK_UP,TK_DOWN,TK_TAB};  // redefineable gamepad keys
 int ZX_PAD_[16] = {0}; // temporary values while remapping. array not serialized
 
-const char *ZX_FOLDER = 0;
+const
+char *ZX_TAB = "A"; // current game letter being browsed. may be a letter or special char.
+char *ZX_TITLE = 0; // current titlebar
+char *ZX_MEDIA = 0; // current mounted game
+
+const char *ZX_FOLDER_UNIX = 0;
+const char *ZX_FOLDER_WINDOWS = 0;
+#ifdef _WIN32
+#define ZX_FOLDER ZX_FOLDER_WINDOWS
+#else
+#define ZX_FOLDER ZX_FOLDER_UNIX
+#endif
 
 #define INI_OPTIONS_STR(X) \
-    X(ZX_FOLDER)
+    X(ZX_FOLDER_UNIX) X(ZX_FOLDER_WINDOWS) X(ZX_TITLE) X(ZX_MEDIA) X(ZX_TAB)
 
 #define INI_OPTIONS_NUM(X) \
     X(ZX) \
@@ -309,15 +310,8 @@ unsigned autoplay_numreads;
 WD1793 wd;
 FDIDisk fdd[NUM_FDI_DRIVES];
 
-// medias (tap,tzx,dsk...)
-struct media_t {
-    int len;
-    byte *bin;
-    double pos;
-} media[16];
-int medias;
-void media_reset() { medias = 0; for(int i=0;i<16;++i) media[i].bin = realloc(media[i].bin, media[i].len = media[i].pos = 0); }
-void media_mount(const byte *bin, int len) { media[medias].bin = memcpy(realloc(media[medias].bin, media[medias].len = len), bin, len), media[medias].pos = 0, medias++; }
+// medias
+uint64_t media_seek[16];
 
 enum { ALL_FILES = 0, GAMES_ONLY = 6*4, TAPES_AND_DISKS_ONLY = 11*4, DISKS_ONLY = 15*4 };
 int file_is_supported(const char *filename, int skip) {
@@ -461,7 +455,6 @@ int loadbin(const byte *ptr, int size, int preloader, int model) {
     int change_model = ret != 2; // you select zx model before loading any tape. however, other medias (disks,snapshots,ay,etc.) change model for you actually
     if( change_model ) ret = loadbin_(ptr, size, preloader, 0); // retry. snapshots and disks need a model change because of preloaders
     if( change_model ) ret = loadbin_(ptr, size, preloader, 0); // retry. tries to fix a stupid bug that wont initialize fdc/+3 properly (see: defendersoftheearth.dsk on a dev build + no .sav file)
-    if( ret >  1 ) media_mount(ptr, size);
     }
     return ret;
 }
@@ -570,17 +563,14 @@ void *zip_read(const char *filename, size_t *size) {
 }
 
 static struct zxdb ZXDB;
-static char *last_load;
-static char *last_title;
 int loadfile(const char *file, int preloader, int model_) {
     if( !file ) return 0;
     if( !is_file(file) ) return 0;
 
-    last_title = (free(last_title), strdup(file));
-
     const char *bak = file;
-    if( file != last_load ) last_load = (free(last_load), strdup(file));
-    file = last_load;
+    static char *lastload = 0;
+    if( file != lastload ) lastload = (free(lastload), strdup(file));
+    file = lastload;
 
 #if TESTS
     printf("\n\n%s\n-------------\n\n", file);
@@ -599,8 +589,7 @@ int loadfile(const char *file, int preloader, int model_) {
             for( zip *z = zip_open(file, "rb"); z; zip_close(z), z = 0 )
             for( unsigned i = 0 ; i < zip_count(z); ++i ) {
                 if( file_is_supported(zip_name(z,i), GAMES_ONLY) ) {
-                    free(last_title);
-                    file = last_title = strdup(zip_name(z,i));
+                    file = strdup(zip_name(z,i)); // @leak
                     break;
                 }
             }
@@ -608,8 +597,7 @@ int loadfile(const char *file, int preloader, int model_) {
             for( rar *r = rar_open(file, "rb"); r; rar_close(r), r = 0 )
             for( unsigned i = 0 ; i < rar_count(r); ++i ) {
                 if( file_is_supported(rar_name(r,i), GAMES_ONLY) ) {
-                    free(last_title);
-                    file = last_title = strdup(rar_name(r,i));
+                    file = strdup(rar_name(r,i)); // @leak
                     break;
                 }
             }
@@ -699,11 +687,10 @@ int loadfile(const char *file, int preloader, int model_) {
 }
 
 int reload(int model) {
-    if( !loadfile(last_load,1,model) ) {
-        bool zxdb_load(const char *id_, int ZX_MODEL);
-        return zxdb_load(last_load, model);
-    }
-    return 1;
+    bool zxdb_load(const char *id_, int ZX_MODEL);
+    if( ZX_MEDIA ) if( loadfile(ZX_MEDIA,1,model) ) return 1;
+    if( ZX_MEDIA ) if( zxdb_load(ZX_MEDIA, model) ) return 1;
+    return 0;
 }
 
 
@@ -1010,13 +997,12 @@ byte inport_0xfffd(void) {
     if( *v == 14 ) {
 
         // Magnum Light Phaser / Defender Light Gun for Spectrum >= 128
-        // 1101 1111 bit5: trigger button (0=Pressed, 1=Released)
-        // 1110 1111 bit4: light sensor   (0=None, 1=Light)
+        // 11X0 1111 bit5: trigger button (0=Pressed, 1=Released)
+        // 110X 1111 bit4: light sensor   (0=None, 1=Light)
 
-        byte gunstick(byte);
-        struct mouse m = mouse();
-        byte val = m.lb ? 0xDF : 0xEF; // set button
-        val |= 0x10 * (gunstick(0xFF) < 0xFE); // set light
+        int lightgun();
+        byte val = mouse().lb ? 0xCF : 0xEF; // set button
+        val |= 0x10 * lightgun(); // set light
 
         r[14] = val;
 
@@ -1160,6 +1146,16 @@ void frame_new() {
             }
         }
 
+        #if 1 // @fixme: this is hack that eats pauses if we're stuck while trying to read pauses (BookOfTheDeadPart1(GDB))
+        static int pause_hz = 0;
+        pause_hz = (pause_hz+1) * ( tape_hz > 300  && tape_playing() && voc_pos > 1 && voc[voc_pos].debug == 'u' && voc[voc_pos-1].debug == 'u' );
+        if( pause_hz > (50*5) ) {
+            pause_hz = 0;
+            while( voc_pos < voc_len && voc[voc_pos].debug == 'u' ) voc_pos++;
+            voc_pos -= 2 * (voc_pos > 1);
+        }
+        #endif
+
         autoplay = 0;
         autostop = 0;
     }
@@ -1222,7 +1218,7 @@ void sys_audio() {
     }
 
     // tick the AY (half frequency)
-    static float output[4] = {0,0,0,0};
+    static float output[1+3+3] = {0};
     static float ay_sample = 0;
     if( ZX >= 128 ) {
         static float ay_sample1 = 0, ay_sample2 = 0; enum { ayumi_fast = 0 };
@@ -1231,24 +1227,24 @@ void sys_audio() {
         if( ZX_AY == 0 ) ay_sample1 = ay_sample2 = 0; // no ay
 
         if( ZX_AY == 1 ) if( even & 1 ) {  // half frequency
-            ay38910_tick(&ay[0], output), ay_sample1 = ay_sample2 = ay[0].sample;
+            ay38910_tick(&ay[0], output+1), ay_sample1 = ay_sample2 = ay[0].sample;
 
             if( ZX_PENTAGON )
-            ay38910_tick(&ay[1], output), ay_sample2 = ay[1].sample;
+            ay38910_tick(&ay[1], output+4), ay_sample2 = ay[1].sample;
         }
 
         if( ZX_AY == 2 ) if(!(even & 0x7F)) { // 2/256 freq. even == 0 || even == 0x80
-            ay_sample1 = ay_sample2 = ayumi_render(&ayumi[0], ayumi_fast, 1, output) * 2;
+            ay_sample1 = ay_sample2 = ayumi_render(&ayumi[0], ayumi_fast, 1, output+1) * 2;
 
             if( ZX_PENTAGON )
-            ay_sample2 = ayumi_render(&ayumi[1], ayumi_fast, 1, output) * 2;
+            ay_sample2 = ayumi_render(&ayumi[1], ayumi_fast, 1, output+4) * 2;
         }
 
         ay_sample = (ay_sample1 + ay_sample2) * 0.5f; // both
     }
 
     if( do_audio && sample_ready ) {
-        output[3] = buzz.sample; // for 48K vis
+        output[0] = buzz.sample; // for 48K vis
 
         float master = 0.98f * !!ZX_AY; // @todo: expose ZX_AY_VOLUME / ZX_BEEPER_VOLUME instead
         float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
@@ -1416,87 +1412,114 @@ void outport(word port, byte value) {
         return;
     }
 }
-byte gunstick(byte code) { // out: FF(no), FE(fire), FB(lit)
-    // @fixme, lmb should last at least 2 frames (see Guillermo Tell)
-    enum { h_border = _32 };
-    enum { v_border = _24 };
+int lightgun() { // true if sensor is lit
+    int lit = 0;
 
     struct mouse m = mouse();
+    int gunx = m.x - (_32 - mouse_offsets()[0]); // [0..255]
+    int guny = m.y - (_24 - mouse_offsets()[1]); // [0..191]
+    if( gunx < 0 || gunx >= 256 ) return 0;
+    if( guny < 0 || guny >= 192 ) return 0;
 
-    // fire
-    if (m.lb || m.rb) {
-        code &= 0xFE;
-        goto trig;
-    }
-
-        // estimate X,Y position based on TS and check against real mouse pos
-        int scanline = (ticks % 70908) / 311;
-        if( scanline <= 64 || scanline > (64+192) ) return 0xFF;
-        int raster = (ticks % 70908) % 228;
-        if( raster > 128 ) return 0xFF;
 #if 0
-        m.x -= h_border; // 0..256
-        m.y -= v_border; // 0..191
-        raster *= 2; // 0..256
-        scanline -= 64; // 0..191
+    int ts = 14336 + (gunx/32) * 4 + guny * 228;
+    if( abs((ticks % 70908) - ts) > 32 ) return 0;
+#else
+    int ts = (ZX < 128 ? 14336 : 14364) + (gunx/2) + guny * (ZX < 128 ? 224 : 228);
+    if( abs((int)(ticks % (ZX < 128 ? 69888 : 70908)) - ts) > 228*16 ) return 0;
 #endif
-        if( ((m.x-raster)*(m.x-raster)) < 64 )
-            if( ((m.y-scanline)*(m.y-scanline)) < 64 )
-                code &= 0xFB;
-
-        return code;
-
-        // debug
-        printf("gun(%3d,%3d) ask(%3d,%3d) %02x\n", m.x,m.y, raster,scanline, code);
-
-        // debug
-        if( 1 )
-        {
-            raster *= 2; // 0..256
-            raster += _32; // 32..288
-
-            scanline -= 64; // 0..191
-            scanline += _24; // 24..215
-
-            int x = 0; // raster > _319 ? _319 : raster;
-            int y = scanline > _239 ?  _239 : scanline;
-
-            extern window *app;
-            int width = _32+256+_32;
-            rgba *texture = &((rgba*)app->pix)[0];
-            texture[ x + y * width ] = rgb(255,0,255);
-        }
-        return code;
-
-trig:;
 
     // light
     // check whether attribute is white
-    if (m.x > h_border && (m.x - h_border < 256))
-    if (m.y > v_border && (m.y - v_border < 192)) {
-        int x = (m.x - h_border) / 8;
-        int y = (m.y - v_border) / 8;
+    int x = gunx / 8;
+    int y = guny / 8;
 
-        int cell = x;
-        int line = m.y - v_border;
-        int offset = ((line & 7) << 8) + ((line & 0x38) << 2) + ((line & 0xC0) << 5) + cell;
-        byte *pixel = VRAM + offset;
-        byte *attr = VRAM + 6144 + 32 * y + x;
-        int ink = *attr & 7;
-        int paper = (*attr >> 3) & 7;
-        int bright = *attr & 0x40;
+    int cell = x;
+    int line = guny;
+    int offset = ((line & 7) << 8) + ((line & 0x38) << 2) + ((line & 0xC0) << 5) + cell;
+    byte *pixel = VRAM + offset;
+    byte *attr = VRAM + 6144 + 32 * y + x;
+    int ink = *attr & 7;
+    int paper = (*attr >> 3) & 7;
+    int bright = *attr & 0x40;
 
-        #if 0 // find bright luma pixels (green 4, cyan 5, yellow 6, white 7)
-        if( *pixel ? ink >= 4 : paper >= 4 ) code &= 0xFB;
-        #else // find white attribs
-        if (ink == 0x07 || paper == 0x07) code &= 0xFB;
-        #endif
+    // find bright luma pixels (green 4, cyan 5, yellow 6, white 7)
+    // if(ink >= 4 || paper >= 4 ) lit = 1;
+    // find white attribs (gunstick)
+    // if (*pixel ? ink >= 0x04 : paper >= 0x07) lit = 1;
+    // pixel perfect
+    // extern Tigr *canvas;
+    // if( (canvas->pix[(gunx+_32) + (guny+_24) * _256].rgba & RGB(255,255,255)) > RGB(128,128,128)) lit = 1;
+    // debug pixel perfect
+    // canvas->pix[(gunx+_32) + (guny+_24) * _256].rgba = RGB(255,0,0);
 
-        #if 0 // debug
-        printf("gun(%d,%d,%d) attr(%d,%d,%02x) val:%02x\n", m.x,m.y,m.lb, x,y,(byte)*attr, code);
+    // lit = *pixel ? ink >= 4 : paper >= 6;
+    lit = ink >= 4 || paper >= 6;
+
+    #if DEV // debug
+    if( ZX_DEVTOOLS ) {
+        printf("lit:%d gun[%d,%d] attr[%d,%d]=%02x\n", lit, gunx,guny, x,y,(byte)*attr);
         *pixel = 0xFF, *attr = 0x38;
-        #endif
     }
+    #endif
+
+    return lit;
+}
+byte gunstick(byte code) { // out: FF(no), FE(fire), FB(lit)
+    // lmb should last at least 6 frames (see: Guillermo Tell)
+    static uint64_t down = 0;
+    struct mouse m = mouse();
+    if( m.lb || m.rb ) down = ticks;
+    int64_t lapsed = ticks - down;
+
+    int hit = ( lapsed >= 0 && lapsed < (70908 * 6));
+    if( hit ) code &= 0xFE; // if triggered
+
+    if( hit ) {
+        int lit = 0;
+
+        int gunx = m.x - (_32 - mouse_offsets()[0]);
+        int guny = m.y - (_24 - mouse_offsets()[1]);
+
+        // light
+        // check whether attribute is white
+        if (gunx >= 0 && gunx < 256)
+        if (guny >= 0 && guny < 192) {
+            int x = gunx / 8;
+            int y = guny / 8;
+
+            int cell = x;
+            int line = guny;
+            int offset = ((line & 7) << 8) + ((line & 0x38) << 2) + ((line & 0xC0) << 5) + cell;
+            byte *pixel = VRAM + offset;
+            byte *attr = VRAM + 6144 + 32 * y + x;
+            int ink = *attr & 7;
+            int paper = (*attr >> 3) & 7;
+            int bright = *attr & 0x40;
+
+            // find bright luma pixels (green 4, cyan 5, yellow 6, white 7)
+            // if(ink >= 4 || paper >= 4 ) lit = 1;
+            // find white attribs (gunstick)
+            // if (*pixel ? ink >= 0x04 : paper >= 0x07) lit = 1;
+            // pixel perfect
+            // extern Tigr *canvas;
+            // if( (canvas->pix[(gunx+_32) + (guny+_24) * _256].rgba & RGB(255,255,255)) > RGB(128,128,128)) lit = 1;
+            // debug pixel perfect
+            // canvas->pix[(gunx+_32) + (guny+_24) * _256].rgba = RGB(255,0,0);
+
+            lit = *pixel ? ink >= 4 : paper >= 6;
+
+            #if DEV // debug
+            if( ZX_DEVTOOLS ) {
+                printf("lit:%d gun[%d,%d] attr[%d,%d]=%02x\n", lit, gunx,guny, x,y,(byte)*attr);
+                *pixel = 0xFF, *attr = 0x38;
+            }
+            #endif
+        }
+
+        if( lit ) code &= 0xFB;
+    }
+
     return code;
 }
 
@@ -1615,7 +1638,7 @@ byte inport_(word port) {
     }
 
     // ay
-    if( ZX >= 128)
+    if( ZX >= 128 /*|| ZX_GUNSTICK*/ )
     if(!(port & (0xFFFF^0xFFFD))) return inport_0xfffd();
 
     // fuller joystick
@@ -1787,6 +1810,20 @@ byte inport_(word port) {
             }
         }
 
+        // LIGHTGUN (48)
+        // LIGHTGUN GAMES 48K 1 (MISSILE GROUND ZERO,SOLAR INVASION,OPERATION WOLF)
+        // LIGHTGUN GAMES 48K 2 (ROOKIE,ROBOT ATTACK,BULLSEYE)
+        if(0)
+        if( ZX < 128 && ZX_GUNSTICK ) {
+            byte gunstick(byte); // out: FF(no), FE(fire), FB(lit)
+            if( key_down(TK_SPACE) ) // lightgun() == 3 )
+                code ^= 0x40;
+            if( mouse().lb ) // lightgun() == 3 )
+                code &= ~0x40;
+            if( mouse().rb ) // lightgun() == 3 )
+                code |= 0x40;
+        }
+
         return code;
     }
 
@@ -1927,7 +1964,7 @@ enum { quicksave_len = sizeof(struct quicksave) };
 #define IMPORT(f) (f = c->f)
 
 void* quicksave(unsigned slot) {
-    if( slot >= 11) return 0;
+    if( slot > countof(quicksaves) ) return 0;
 
     struct quicksave *c = &quicksaves[slot];
 
@@ -2026,9 +2063,11 @@ void* quicksave(unsigned slot) {
     return c;
 }
 void* quickload(unsigned slot) {
-    if( slot >= 11) return 0;
+    if( slot > countof(quicksaves) ) return 0;
 
     struct quicksave *c = &quicksaves[slot];
+
+    if( !c->ZX ) return 0; // return if slot was never saved
 
     /*config*/(ZX = c->ZX);
 
@@ -2169,7 +2208,7 @@ void eject() {
     Reset1793(&wd,fdd,WD1793_EJECT);
     fdc_reset();
     tape_reset();
-    media_reset();
+    media_seek[0] = 0; //media_reset();
     RZX_reset();
     ZXDB = zxdb_free(ZXDB);
 }
@@ -2220,13 +2259,12 @@ void reset(unsigned FLAGS) {
     tape_ticks = 0;
     autoplay = 0;
     autostop = 0;
-
     tape_rewind();
 
-    if( !(FLAGS & KEEP_MEDIA) ) {
-        eject();
-    } else {
+    if( FLAGS & KEEP_MEDIA ) {
         Reset1793(&wd,fdd,WD1793_KEEP);
+    } else {
+        eject();
     }
 
 }

@@ -907,22 +907,22 @@ const char* as_utf8(const char *str) {
 
 int ui_outline;
 
-int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t bits) {
+int ui_print_glyph8x8(Tigr *ui_layer, int ui_x, int ui_y, const rgba *colors, uint64_t bits) {
+    const int __320 = ui_layer->w, __319 = __320-1, __321 = __320+1;
+    const int __240 = ui_layer->h, __239 = __240-1;
     // early clips
     if(!bits) return 0;
-    const int _320 = ui->w, _319 = _320-1, _321 = _320+1;
-    const int _240 = ui->h, _239 = _240-1;
-    if((ui_y+theFontH) < 0 || ui_y >= _240) return 0;
-    if((ui_x+theFontW) < 0 || ui_x >= _320) return 0;
+    if((ui_y+theFontH) < 0 || ui_y >= __240) return 0;
+    if((ui_x+theFontW) < 0 || ui_x >= __320) return 0;
     // clip vertical
     int y = 0, h = theFontH;
-    if( (ui_y+h) >= _240 ) h -= (ui_y+h)-_239;
+    if( (ui_y+h) >= __240 ) h -= (ui_y+h)-__239;
     else if( ui_y < 0 ) y = -ui_y, ui_y = 0;
     // clip horizontal
     int x = 0, w = theFontW;
     {
         int clipr = 0, clipl = 0;
-        if( (ui_x+w) >= _320 ) clipr = (ui_x+w)-_319, clipl = clipr;
+        if( (ui_x+w) >= __320 ) clipr = (ui_x+w)-__319, clipl = clipr;
         else if( ui_x < 0 ) clipl = -ui_x, ui_x = 0;
 
         if( clipl || clipr ) { // @fixme: optimize this
@@ -946,41 +946,41 @@ int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t
         }
     }
 
-    rgba *texture = &((rgba*)ui->pix)[ui_x + ui_y * _320];
+    rgba *texture = &((rgba*)ui_layer->pix)[ui_x + ui_y * __320];
 
     // outline
 
     if( ui_outline ) {
     int ybak = y;
 
-    for( ; y < h; ++y, texture += _320 ) {
+    for( ; y < h; ++y, texture += __320 ) {
         unsigned y64 = (7 - y) * 8; // will loop 56,48,40,32,24,16,8,0 
-        if(bits & (0x80ULL << y64)) texture[_319+0] = texture[1/*_321+0*/] = texture[-_321+0] = texture[-_319+0] = colors[0];
-        if(bits & (0x40ULL << y64)) texture[_319+1] = texture[2/*_321+1*/] = texture[-_321+1] = texture[-_319+1] = colors[0];
-        if(bits & (0x20ULL << y64)) texture[_319+2] = texture[3/*_321+2*/] = texture[-_321+2] = texture[-_319+2] = colors[0];
-        if(bits & (0x10ULL << y64)) texture[_319+3] = texture[4/*_321+3*/] = texture[-_321+3] = texture[-_319+3] = colors[0];
-        if(bits & (0x08ULL << y64)) texture[_319+4] = texture[5/*_321+4*/] = texture[-_321+4] = texture[-_319+4] = colors[0];
-        if(bits & (0x04ULL << y64)) texture[_319+5] = texture[6/*_321+5*/] = texture[-_321+5] = texture[-_319+5] = colors[0];
-        if(bits & (0x02ULL << y64)) texture[_319+6] = texture[7/*_321+6*/] = texture[-_321+6] = texture[-_319+6] = colors[0];
-        if(bits & (0x01ULL << y64)) texture[_319+7] = texture[8/*_321+7*/] = texture[-_321+7] = texture[-_319+7] = colors[0];
+        if(bits & (0x80ULL << y64)) texture[__319+0] = texture[1/*__321+0*/] = texture[-__321+0] = texture[-__319+0] = colors[0];
+        if(bits & (0x40ULL << y64)) texture[__319+1] = texture[2/*__321+1*/] = texture[-__321+1] = texture[-__319+1] = colors[0];
+        if(bits & (0x20ULL << y64)) texture[__319+2] = texture[3/*__321+2*/] = texture[-__321+2] = texture[-__319+2] = colors[0];
+        if(bits & (0x10ULL << y64)) texture[__319+3] = texture[4/*__321+3*/] = texture[-__321+3] = texture[-__319+3] = colors[0];
+        if(bits & (0x08ULL << y64)) texture[__319+4] = texture[5/*__321+4*/] = texture[-__321+4] = texture[-__319+4] = colors[0];
+        if(bits & (0x04ULL << y64)) texture[__319+5] = texture[6/*__321+5*/] = texture[-__321+5] = texture[-__319+5] = colors[0];
+        if(bits & (0x02ULL << y64)) texture[__319+6] = texture[7/*__321+6*/] = texture[-__321+6] = texture[-__319+6] = colors[0];
+        if(bits & (0x01ULL << y64)) texture[__319+7] = texture[8/*__321+7*/] = texture[-__321+7] = texture[-__319+7] = colors[0];
     }
 
-    texture -= _320 * (h - ybak);
+    texture -= __320 * (h - ybak);
     y = ybak;
     }
 
     // shadow
 
-    for( ; y < h; ++y, texture += _320 ) {
+    for( ; y < h; ++y, texture += __320 ) {
         unsigned y64 = (7 - y) * 8; // will loop 56,48,40,32,24,16,8,0 
-        if(bits & (0x80ULL << y64)) texture[_321+0] = colors[0], texture[0] = colors[1];
-        if(bits & (0x40ULL << y64)) texture[_321+1] = colors[0], texture[1] = colors[1];
-        if(bits & (0x20ULL << y64)) texture[_321+2] = colors[0], texture[2] = colors[1];
-        if(bits & (0x10ULL << y64)) texture[_321+3] = colors[0], texture[3] = colors[1];
-        if(bits & (0x08ULL << y64)) texture[_321+4] = colors[0], texture[4] = colors[1];
-        if(bits & (0x04ULL << y64)) texture[_321+5] = colors[0], texture[5] = colors[1];
-        if(bits & (0x02ULL << y64)) texture[_321+6] = colors[0], texture[6] = colors[1];
-        if(bits & (0x01ULL << y64)) texture[_321+7] = colors[0], texture[7] = colors[1];
+        if(bits & (0x80ULL << y64)) texture[__321+0] = colors[0], texture[0] = colors[1];
+        if(bits & (0x40ULL << y64)) texture[__321+1] = colors[0], texture[1] = colors[1];
+        if(bits & (0x20ULL << y64)) texture[__321+2] = colors[0], texture[2] = colors[1];
+        if(bits & (0x10ULL << y64)) texture[__321+3] = colors[0], texture[3] = colors[1];
+        if(bits & (0x08ULL << y64)) texture[__321+4] = colors[0], texture[4] = colors[1];
+        if(bits & (0x04ULL << y64)) texture[__321+5] = colors[0], texture[5] = colors[1];
+        if(bits & (0x02ULL << y64)) texture[__321+6] = colors[0], texture[6] = colors[1];
+        if(bits & (0x01ULL << y64)) texture[__321+7] = colors[0], texture[7] = colors[1];
     }
     return 1;
 }
@@ -1138,7 +1138,7 @@ void ui_notify(const char *utf8) {
     int dims = ui_print(0, 0, 0, NULL, utf8);
     int w = dims & 0xFFFF;
     int h = dims >> 16;
-    ui_print(ui_layer, (_320-w)/2, _240-(theFontH+theFontPaddingH)*2, ui_colors, utf8);
+    ui_print(ui_layer, (__320-w)/2, __240-(theFontH+theFontPaddingH)*2, ui_colors, utf8);
     ui_colors[1] = ui_ff.rgba;
 }
 
@@ -1154,10 +1154,30 @@ void ui_notify(const char *utf8) {
 
     snprintf(ui_notify_text, 512, "%s", utf8 ? utf8 : "");
     replace(ui_notify_text, "#", "\n");
+
+    // try to amend some long titles like JourneyToAlphaCentauri,ApocalypseExpansionKit,etc.
+    // @fixme: wordwrap still needed for SamSladeRoboHunter, ProfessionalAPsychotic, MaritriniFreelanceMonsterSlayer... and many more
+    // see: "Sherlock Holmes: The Lamberley Mystery (1990)(Zenobi Software)" in 1366x768 X2
+    {
+        int dims = ui_print(0, 0, 0, NULL, ui_notify_text);
+        int w = dims & 0xFFFF;
+        int h = dims >> 16;
+        int lines = 1 + h / (theFontH-1);
+        if( w > _320 )
+            replace(ui_notify_text, "()", "\n"),
+            replace(ui_notify_text, " (", "\n("),
+            replace(ui_notify_text, " + ", "\n"),
+            replace(ui_notify_text, " - ", "\n"),
+            replace(ui_notify_text, ": ", "\n"),
+            replace(ui_notify_text, ", ", "\n");
+    }
 }
 
 static
 void ui_notify_draw() {
+    const int __320 = ui_layer->w, __319 = __320-1, __321 = __320+1;
+    const int __240 = ui_layer->h, __239 = __240-1;
+
     char *ptr = ui_notify_text;
     while( *ptr == '\n' ) ++ptr;
     if( *ptr == '\0' ) return;
@@ -1184,20 +1204,20 @@ void ui_notify_draw() {
 
     // ui animation
     smooth = smooth * 0.75 + enabled * 0.25;
-    int y = _240-lines*(theFontH+theFontPaddingH)*smooth;
+    int y = __240-lines*(theFontH+theFontPaddingH)*smooth;
     if( smooth > 0.1 ) {
         // draw black panel
         int y2 = y-(theFontH+theFontPaddingH);
         TPixel transp = { 0,0,0, 192 * smooth };
-        tigrFillRect(ui_layer, -1,y2, _320+2,_240, transp);
-        tigrLine(ui_layer, -1,y2, _320+2,y2, ((TPixel){255,255,255,240*smooth}));
+        tigrFillRect(ui_layer, -1,y2, __320+2,__240, transp);
+        tigrLine(ui_layer, -1,y2, __320+2,y2, ((TPixel){255,255,255,240*smooth}));
     }
 
     // text
     rgba ui_colors2[] = { ui_00.rgba, ui_notify_color.rgba };
 #if 0
     // left aligned
-    ui_print(ui_layer, (_320-w)/2, y/*_240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
+    ui_print(ui_layer, (__320-w)/2, y/*__240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
 #else
     // centered
     char *bak = strchr(ptr, '\n');
@@ -1209,7 +1229,7 @@ void ui_notify_draw() {
         int h2 = dims2 >> 16;
         int lines2 = 1 + h2 / (theFontH-1);
 
-        ui_print(ui_layer, (_320-w)/2 + (w-w2)/2, y/*_240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
+        ui_print(ui_layer, (__320-w)/2 + (w-w2)/2, y/*__240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
 
         *bak = '\n';
         ptr = bak + 1;
@@ -1222,7 +1242,7 @@ void ui_notify_draw() {
         int h2 = dims2 >> 16;
         int lines2 = 1 + h2 / (theFontH-1);
 
-        ui_print(ui_layer, (_320-w)/2 + (w-w2)/2, y/*_240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
+        ui_print(ui_layer, (__320-w)/2 + (w-w2)/2, y/*__240-(theFontH+theFontPaddingH)*2*/, ui_colors2, ptr);
     }
 #endif
 }
@@ -1234,6 +1254,9 @@ void ui_frame_end() {
 #endif
 
 int ui_button(const char *hint8, const char *utf8) {
+    const int __320 = ui_layer->w, __319 = __320-1, __321 = __320+1;
+    const int __240 = ui_layer->h, __239 = __240-1;
+
 #if 0
     tigrPrint(ui_layer, tfont, ui_x, ui_y, "%s", utf8);
     int w = tigrTextWidth(tfont, utf8);
@@ -1251,7 +1274,7 @@ int ui_button(const char *hint8, const char *utf8) {
 #endif
 
     ui_hover = ui_mx >= ui_x && ui_mx < (ui_x+w) && ui_my >= ui_y && ui_my < (ui_y+h);
-    ui_hover *= (ui_mx < _320 && ui_my < _240);
+    ui_hover *= (ui_mx < __320 && ui_my < __240);
 
     if( ui_hover && ui_allow_links ) {
         TPixel color = ui_ff; color.a = color.a * 0.50 + ui_alpha * 0.50;
@@ -1465,6 +1488,9 @@ int ui_dialog_new(const char *title) {
 }
 
 int ui_dialog_render(Tigr *dialog, float wheel) {
+    const int __320 = dialog->w, __319 = __320-1, __321 = __320+1;
+    const int __240 = dialog->h, __239 = __240-1;
+
     smooth = smooth * 0.85 + 1.0 * 0.15;
 
     if( num_options ) {
@@ -1480,7 +1506,8 @@ int ui_dialog_render(Tigr *dialog, float wheel) {
             }
         }
 
-        if( wheel ) {
+        if( wheel )
+        if( num_options > (_240/11) ) {
             options[0].scroll += wheel;
         }
 
@@ -1488,9 +1515,9 @@ int ui_dialog_render(Tigr *dialog, float wheel) {
         int LINE_SPACING = 3;
         int EXTRA_PIXELS = theFontH + LINE_SPACING + theFontH; // 2 blank LINES + 1 SPACING
 
-        int center = _240/2; center += options[0].scroll;
+        int center = __240/2; center += options[0].scroll;
         int height = EXTRA_PIXELS; for(int i = 0; i < num_options; ++i) height += options[i].h * options[i].lf;
-        int dynheight = _240 * (1-smooth) + height * smooth;
+        int dynheight = __240 * (1-smooth) + height * smooth;
         int y1 = center - dynheight/2, y2 = center + dynheight/2;
         // int x0 = 0, y0 = y1 + EXTRA_PIXELS/2 + LINE_SPACING; // animated text
         int x0 = 0, y0 = (center - height/2) + EXTRA_PIXELS/2 + LINE_SPACING;
@@ -1498,9 +1525,9 @@ int ui_dialog_render(Tigr *dialog, float wheel) {
         // animate black panel
         TPixel transp = { 0,0,0, 224 * smooth };
         tigrClear(dialog,tigrRGBA(0,0,0,0));
-        tigrFillRect(dialog, -1, y1, _321+1, y2-y1+1, transp);
-        tigrLine(dialog, -1,y1, _321+1,y1, ((TPixel){255,255,255,255}));
-        tigrLine(dialog, -1,y2, _321+1,y2, ((TPixel){255,255,255,255}));
+        tigrFillRect(dialog, -1, y1, __321+1, y2-y1+1, transp);
+        tigrLine(dialog, -1,y1, __321+1,y1, ((TPixel){255,255,255,255}));
+        tigrLine(dialog, -1,y2, __321+1,y2, ((TPixel){255,255,255,255}));
         
         // calc longest line
         int maxw = 0;
@@ -1529,12 +1556,12 @@ int ui_dialog_render(Tigr *dialog, float wheel) {
 
         for( int i = 0; i < num_options; ++i ) {
 
-            _0 = options[i].center ?  0 : (_320-maxw)/2;
+            _0 = options[i].center ?  0 : (__320-maxw)/2;
             x0 = options[i].center ? x0 : _0;
 
             // center group horizontally
             if( options[i].center ) {
-            for( int j = i ; x0 == _0 ; x0 = (_320-x0) / 2 ) {
+            for( int j = i ; x0 == _0 ; x0 = (__320-x0) / 2 ) {
                 do x0 += options[j++].w; while( !options[j-1].lf && (j-1) < num_options );
                 x0 += (i!=j) * theFontW; // word spaces
             }

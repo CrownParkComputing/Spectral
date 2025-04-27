@@ -158,6 +158,7 @@ char *zxdb_download2_unc(const char *id_, int *len) { // must free()
 }
 
 // @fixme: next function should use the previous zxdb_download2() function above
+// ZX_MODEL: <0: do not reset, ==0: infer model, >0 : specific model
 bool zxdb_load(const char *id_, int ZX_MODEL) {
     if( id_ && id_[0] && strcmp(id_, "0") && strcmp(id_, "#") ) {
 
@@ -189,12 +190,10 @@ bool zxdb_load(const char *id_, int ZX_MODEL) {
             static char *data = 0;
             if( data ) free(data), data = 0;
             if(!data ) data = zxdb_download(ZXDB2,zxdb_url(ZXDB2, hint), &len);
-            if( data ) {
+            if( data && len ) {
 
-                if( ZX_MODEL ) {
-                    boot(ZX = ZX_MODEL, ~0u);
-                }
-                else {
+                /**/ if( ZX_MODEL >  0 ) boot(ZX = ZX_MODEL, ~0u);  //>0
+                else if( ZX_MODEL == 0 ) {
                     ZX_PENTAGON = 0;
                     char *model = strchr(ZXDB2.ids[5], ',')+1;
                     /**/ if( strstr(model, "Pentagon") ) boot(ZX = 128, ~0u), ZX_PENTAGON = 1, rom_restore();
@@ -217,15 +216,11 @@ bool zxdb_load(const char *id_, int ZX_MODEL) {
                 loadfile(".Spectral/$$load", 1, 0);
                 unlink(".Spectral/$$load");
         #endif
+
+                // @fixme: verify that previous step went right
+                ZXDB = ZXDB2;
+                return true;
             }
-
-            // @fixme: verify that previous step went right
-
-            extern char *last_load;
-            last_load = (free(last_load), strdup(ZXDB2.ids[2]/*id_*/));
-
-            ZXDB = ZXDB2;
-            return true;
         }
     }
     return false;
@@ -436,7 +431,7 @@ char *zxdb_screen_async(const char *id, int *len, int factor) {
 
 int active; // @todo: rename to browsing, browser_active, or library_active
 
-extern Tigr *app, *ui;
+extern Tigr *ui;
 
 char **games;
 int *dbgames;
@@ -737,8 +732,8 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     static int tbl[256] = {0};
     int up = key_repeat_( TK_DOWN, tbl) - key_repeat_( TK_UP, tbl);
     int pg = key_repeat_( TK_PAGEDN, tbl) - key_repeat_( TK_PAGEUP, tbl);
-    int home = key_pressed( TK_HOME) || (key_pressed( TK_UP) && tigrKeyHeld(app, TK_CONTROL));
-    int end  = key_pressed( TK_END) || (key_pressed( TK_DOWN) && tigrKeyHeld(app, TK_CONTROL));
+    int home = key_pressed( TK_HOME) || (key_pressed( TK_UP) && key_held(TK_CONTROL));
+    int end  = key_pressed( TK_END) || (key_pressed( TK_DOWN) && key_held(TK_CONTROL));
 
     float wheel = mouse().wheel;
     if( wheel ) {
@@ -777,10 +772,10 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
 }
 
 char* game_browser_v1() {
-    int press_backspace = tigrKeyDown(app, TK_BACKSPACE);
+    int press_backspace = key_down(TK_BACKSPACE);
     int has_finder = !!num_options;
 
-    enum { ENTRIES = (_240/11)-2 };
+    const int ENTRIES = (_240/11)-2;
     int chosen = game_browser_keyboard(ENTRIES, numgames);
         // return '..' if finder is not visible
         if( press_backspace && !has_finder ) return selected = 0, scroll = 0, games[0];
@@ -881,7 +876,10 @@ char* game_browser_v1() {
     return NULL;
 }
 
-
+static void rgba_blit(Tigr *dst, const rgba *src, int dx, int dy, int sx, int sy, int sw, int sh) {
+    Tigr tx = {0}; tx.pix = (TPixel*)src; tx.w = sw, tx.h = sh;
+    tigrBlit(dst, &tx, dx,dy, sx,sy,sw,sh);
+}
 
 char* game_browser_v2() {
     // decay to local file browser if no ZXDB is present
@@ -907,7 +905,7 @@ char* game_browser_v2() {
 
     const int LINE_HEIGHT = 11;
     const int UPPER_SPACING = 2;
-    const int BOTTOM_SPACING = (DEV ? 5 : 3) * LINE_HEIGHT;
+    const int BOTTOM_SPACING = 3 * LINE_HEIGHT;
 
     // vars
 
@@ -922,23 +920,32 @@ char* game_browser_v2() {
     static rgba *background_texture = 0;
     if( thumbnails == 0 )
     if( background_texture ) {
+#if 0
         int factor = 0, f256 = 256/(1<<factor), f192 = 192/(1<<factor);
-        for(int i = 0, x = _32, y = _24; i < f192; ++i) {
+        if( _320 > 256 && _240 > 192 ) // @fixme: impl clipping instead
+        for(int i = 0, x = (_320-256)/2, y = (_240-192)/2; i < f192; ++i) {
             memcpy(&ui->pix[x+(y+i)*_320], background_texture + (0+i*f256), f256*4);
         }
+#else
+        rgba_blit(ui, background_texture, (_320-256)/2,(_240-192)/2, 0,0,256,192);
+#endif
     }
 
     // upper tabs
 
-    ui_at(ui, 11-4-2, UPPER_SPACING);
-
 //  static const char *tab = 0;
     static const char *tabs = "\x17#ABCDEFGHIJKLMNOPQRSTUVWXYZ\x12\x18"; // "⧖"
 
-    do_once tab = tabs+2; // 'A'
+    do_once tab = tabs+2; // default 'A' tab
+    do_once if( ZX_TAB && strchr(tabs, *ZX_TAB) ) tab = strchr(tabs, *ZX_TAB); // user's tab
 
+#if 0
+    ui_at(ui, 11-4-2+20, UPPER_SPACING);
+#else
+    ui_at(ui, (_320-330)/2, UPPER_SPACING);
+#endif
     for(int i = 0; tabs[i]; ++i) {
-        if( (ui_at(ui, ui_x+4+20*(i==0), ui_y), ui_button(NULL, va("%c%c", (tab && tabs[i] == *tab) ? 5 : 7, tabs[i])) )) {
+        if( (ui_at(ui, ui_x+4, ui_y), ui_button(NULL, va("%c%c", (tab && tabs[i] == *tab) ? 5 : 7, tabs[i])) )) {
             if( ui_hover ) {
                 /**/ if(tabs[i] == '\x17') ui_notify( "-Browse local folder-\nClick again to change folder" );
                 else if(tabs[i] == '\x12') ui_notify( "-List Bookmarks-\nClick again to change thumbnails view" );
@@ -978,6 +985,12 @@ char* game_browser_v2() {
     if(!tab) tab = tabs;
     tab += right - left;
     if( tab < first || tab > last ) tab = left ? last : right ? first : tab;
+#endif
+
+#if 0
+    if(tab && *tab != 0x18) { if(ZX_TAB) free(ZX_TAB); ZX_TAB = strdup(va("%c", *tab)); }
+#else
+    if(tab && *tab != 0x18) { static char save; ZX_TAB = &save; 0[(char*)ZX_TAB] = *tab; }
 #endif
 
     static const char *prev = 0;
@@ -1087,11 +1100,11 @@ char* game_browser_v2() {
 
     ui_at(ui, 0, UPPER_SPACING+2*LINE_HEIGHT);
 
-    int ENTRIES_PER_PAGE = 25; // (_240-ui_y-BOTTOM_SPACING)/LINE_HEIGHT;
+    int ENTRIES_PER_PAGE = (_240-ui_y/*-BOTTOM_SPACING*/)/LINE_HEIGHT;
 
-    if( thumbnails == 0 ) ENTRIES_PER_PAGE = 25;
-    if( thumbnails == 3 ) ENTRIES_PER_PAGE = 3*3;
-    if( thumbnails == 6 ) ENTRIES_PER_PAGE = 6*6;
+//    if( thumbnails == 0 ) ENTRIES_PER_PAGE = 25;
+    if( thumbnails ==  3 ) ENTRIES_PER_PAGE = 3*3;
+    if( thumbnails ==  6 ) ENTRIES_PER_PAGE = 6*6;
     if( thumbnails == 12 ) ENTRIES_PER_PAGE = 12*12;
 
 #if 0
@@ -1185,8 +1198,8 @@ char* game_browser_v2() {
         int flag = (vars >> 4) & 0x0f; assert(flag <= 3);
 
         // build title and clean it up
-        char full_title[64];
-        snprintf(full_title, sizeof(full_title), " %.*s (%.*s)(%.*s)", title_len, title, years_len, years, brand_len, brand);
+        char full_title[512];
+        snprintf(full_title, sizeof(full_title)-1, " %.*s (%.*s)(%.*s)", title_len, title, years_len, years, brand_len, brand);
         for( int i = 1; full_title[i]; ++i )
             if( i == 1 || full_title[i-1] == '.' )
                 full_title[i] = toupper(full_title[i]);
@@ -1231,6 +1244,12 @@ char* game_browser_v2() {
                         } else {
                             background_texture = thumbnail(data, len, 1, ZXFlashFlag);
                         }
+                        // dim background
+                        for( rgba *p = background_texture, *pend = &p[256 + 191 * 256]; p < pend; ++p ) {
+                            // *p = ( *p & 0x00f8f8f8 ) >> 3 | 0xff000000;
+                            // *p = ( *p & 0x00fcfcfc ) >> 2 | 0xff000000;
+                            *p = ( *p & 0x00fefefe ) >> 1 | 0xff000000;
+                        }
                     }
                 }
 
@@ -1254,9 +1273,13 @@ char* game_browser_v2() {
                 // blit
                 const rgba *bitmap = (rgba*)data;
                 int f256 = 256/(1<<factor), f192 = 192/(1<<factor);
+                #if 0
                 for(int i = 0; i < f192; ++i) {
                     memcpy(&ui->pix[x+(y+i)*_320], bitmap + (0+i*f256), f256*4);
                 }
+                #else
+                rgba_blit(ui, bitmap, x,y, 0,0,f256,f192);
+                #endif
 
                 has_thumb = 1;
             }
@@ -1320,8 +1343,8 @@ char* game_browser_v2() {
 
         if( !num_options )
         if( selected == i ) {
-            if(!tigrKeyHeld(app, TK_SHIFT) && tigrKeyDown(app, TK_SPACE) ) starred = 1;
-            if( tigrKeyHeld(app, TK_SHIFT) && tigrKeyDown(app, TK_SPACE) ) flagged = 1;
+            if(!key_held(TK_SHIFT) && key_down(TK_SPACE) ) starred = 1;
+            if( key_held(TK_SHIFT) && key_down(TK_SPACE) ) flagged = 1;
         }
 
         if( flagged || starred ) {

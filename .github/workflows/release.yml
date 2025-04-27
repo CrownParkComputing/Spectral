@@ -59,7 +59,7 @@ jobs:
         id: polyfill
         with:
           glibc: "2.17"
-          target: "./Spectral.linux"
+          target: "./SpectralNoZXDB.linux"
       - name: Compress 'n Package
         run: |
           upx -9 SpectralNoZXDB.linux

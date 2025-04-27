@@ -1,11 +1,26 @@
 // mouse
+
 struct mouse {
     int x, y, lb, mb, rb, buttons, cursor; // buttons: R2M1L0 bits
     float wheel;
 };
+
+struct mouse mouse();
+void mouse_cursor(int mode); // 0(hide),1(arrow),2(hand),3(ibeam),4(cross)
+void mouse_clip(int clip);
+
+static int* mouse_offsets() {
+    static int off[2] = {0};
+    return off;
+}
+
+
+// impl
+
 struct mouse mouse() {
     extern Tigr *app;
     int mx, my, mb, lmb, mmb, rmb;
+
     tigrMouse(app, &mx, &my, &mb);
 
 #ifdef _WIN32
@@ -95,4 +110,3 @@ void mouse_clip(int clip) {
     // mouse_cursor(clip && !active ? 0 : 1);
 #endif
 }
-

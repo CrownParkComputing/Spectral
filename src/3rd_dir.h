@@ -45,6 +45,10 @@ void dir_close(dir*);
 #define REALLOC realloc
 #endif
 
+#ifndef DIR_EXCLUDED
+#define DIR_EXCLUDED(folder) 0
+#endif
+
 #ifndef ERR
 #define ERR(NUM, ...) (fprintf(stderr, "" __VA_ARGS__), fprintf(stderr, "(%s:%d)\n", __FILE__, __LINE__), fflush(stderr), (NUM)) // (NUM)
 #endif
@@ -80,9 +84,13 @@ int dir_yield(dir *d, const char *pathfile, char *name, int namelen) {
         for( int next = 1; next; next = FindNextFileW(h, &fdata) != 0 ) {
 
             int is_dir = (fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) > 0;
-            if( is_dir && fdata.cFileName[0] == '.' ) continue;
 
-            snprintf(name, namelen, "%s/%s%s", pathfile, shorten(fdata.cFileName), is_dir ? "/" : ""); // @leak
+            const char *fname = shorten(fdata.cFileName);
+            if( is_dir ) if( DIR_EXCLUDED(fname) ) continue;
+            if( is_dir ) if( fname[0] == '.' && (fname[1] == '\0' || fname[1] == '.') ) continue;
+            if( is_dir ) if( !strcmp(fname, ".DS_Store") || !strcmp(fname, ".git") || !strcmp(fname, ".github") || !strcmp(fname, ".svn") ) continue;
+
+            snprintf(name, namelen, "%s/%s%s", pathfile, fname, is_dir ? "/" : ""); // @leak
 
             struct _stat64i32 st; if( !is_dir ) if(_wstat(widen(name), &st) < 0) continue; //@leak
 
@@ -101,7 +109,11 @@ int dir_yield(dir *d, const char *pathfile, char *name, int namelen) {
             snprintf(name, namelen, "%s/%s", pathfile, ep->d_name);
             struct stat st; if( stat(name, &st) < 0 ) continue;
             DIR *tmp = opendir(/*ep->d_*/name); int is_dir = !!tmp; if(tmp) closedir(tmp); // @todo:optimizeme (maybe use stat instead)
-            if( is_dir && ep->d_name[0] == '.' ) continue;
+
+            const char *fname = ep->d_name;
+            if( is_dir ) if( DIR_EXCLUDED(fname) ) continue;
+            if( is_dir ) if( fname[0] == '.' && (fname[1] == '\0' || fname[1] == '.') ) continue;
+            if( is_dir ) if( !strcmp(fname, ".DS_Store") || !strcmp(fname, ".git") || !strcmp(fname, ".github") || !strcmp(fname, ".svn") ) continue;
 
             // add
             if( is_dir ) strcat(name, "/");

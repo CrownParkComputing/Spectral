@@ -100,6 +100,7 @@ void scaleBlit(Tigr* dest, Tigr* src, float centerX, float centerY, float scale)
 }
 
 void tigrRenderMap(Tigr *screen, Tigr *map, int mx, int my, int buttons, float wheel) {
+    static Tigr* cache;
     static int   dragging, lastX, lastY;
     static float zoom, minZoom, maxZoom;
     static float centerX, centerY;
@@ -119,6 +120,8 @@ void tigrRenderMap(Tigr *screen, Tigr *map, int mx, int my, int buttons, float w
         zoom = minZoom;
         centerX = map->w / 2.0f;
         centerY = map->h / 2.0f;
+
+        if( cache ) tigrFree(cache), cache = 0;
         
         printf("MAP INIT: map dimensions: %dx%d center(%f,%f)\n", map->w, map->h, centerX, centerY);
     }
@@ -157,28 +160,38 @@ void tigrRenderMap(Tigr *screen, Tigr *map, int mx, int my, int buttons, float w
         centerX = mouseMapX - (mx - WINDOW_WIDTH / 2.0f) * newScale;
         centerY = mouseMapY - (my - WINDOW_HEIGHT / 2.0f) * newScale;
     }
+
+    if( buttons || wheel ) {
+        if( cache ) tigrFree(cache), cache = 0;
+    }
     
-    // Calc view limits
-    float scale = (float)tigrMax(map->w, map->h) / (WINDOW_WIDTH * zoom);
-    float viewWidth = WINDOW_WIDTH * scale;
-    float viewHeight = WINDOW_HEIGHT * scale;
-    
-    // Modify how limits are calculated to avoid discrepancies
-    float minX = viewWidth / 2.0f;
-    float maxX = map->w - viewWidth / 2.0f;
-    float minY = viewHeight / 2.0f;
-    float maxY = map->h - viewHeight / 2.0f;
-    
-    // Ensure minX <= maxX y minY <= maxY, so centerY does not jitter
-    if (minX > maxX) minX = maxX = map->w / 2.0f;
-    if (minY > maxY) minY = maxY = map->h / 2.0f;
-    
-    // Apply limits
-    centerX = tigrClamp(centerX, minX, maxX);
-    centerY = tigrClamp(centerY, minY, maxY);
-    
-    // Render using exact coords
-    scaleBlit(screen, map, centerX, centerY, scale);
+    if( !cache ) {
+        // Calc view limits
+        float scale = (float)tigrMax(map->w, map->h) / (WINDOW_WIDTH * zoom);
+        float viewWidth = WINDOW_WIDTH * scale;
+        float viewHeight = WINDOW_HEIGHT * scale;
+        
+        // Modify how limits are calculated to avoid discrepancies
+        float minX = viewWidth / 2.0f;
+        float maxX = map->w - viewWidth / 2.0f;
+        float minY = viewHeight / 2.0f;
+        float maxY = map->h - viewHeight / 2.0f;
+        
+        // Ensure minX <= maxX y minY <= maxY, so centerY does not jitter
+        if (minX > maxX) minX = maxX = map->w / 2.0f;
+        if (minY > maxY) minY = maxY = map->h / 2.0f;
+        
+        // Apply limits
+        centerX = tigrClamp(centerX, minX, maxX);
+        centerY = tigrClamp(centerY, minY, maxY);
+        
+        // Render using exact coords
+        cache = tigrBitmap(_320, _240);
+        scaleBlit(cache, map, centerX, centerY, scale);
+    }
+
+    // Blit cached surface
+    tigrBlit(screen, cache, 0,0, 0,0,_320,_240);
     
     // Cross-hair
     enum { _10 = 3 };

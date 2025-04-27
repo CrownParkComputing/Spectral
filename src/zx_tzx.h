@@ -28,6 +28,7 @@ int tzx_load(const byte *fp, int len) {
     unsigned loop_counter = 0, loop_pointer = 0;
 
     // parse blocks till end of tape
+    const char *warning = 0;
     for(byte *src = (byte*)fp, *end = src+len; valid && src < end; ++processed) {
         int id = *src++;
 
@@ -135,7 +136,7 @@ int tzx_load(const byte *fp, int len) {
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 src += bytes;
 
-            break; case 0x19: // @todo: Basil, BountyBobStrikesBack(Americana), NowotnikPuzzleThe, Twister-MotherOfCharlotte, AYankeeInIraqv132(TurboLoader)
+            break; case 0x19: // OK BCQuestForTires, AYankeeInIraq, BookOfTheDeadPar1, WorldCupCarnival, Twister, GLUF(AstTurbo), ...
                 blockname = "generalizedData";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 pause  = (*src++); pause  |= (*src++)*0x100;
@@ -192,23 +193,28 @@ int tzx_load(const byte *fp, int len) {
                     }
                 }
 
-                puts("");
-
                 unsigned NB = ceil(log2(asd));
                 unsigned DS = ceil(NB*totd/8);
+
+                printf("\ntzx.block %03d ($%02X)    GDB: NB:%u(%u) DS:%u(%u)\n", processed, id, NB, asd, DS, NB*totd/8);
 
                 while( DS-- ) {
                     byte data = (*src++);
 
-                    int zero = symdef_asd[0].pulses[0];
-                    int one = symdef_asd[1].pulses[0];
+                    for( int i = 0, bits = totd < 8 ? totd : 8; i < bits; i += NB ) {
+                        byte sym = NB == 8 ? data : !!(data & (1<<(8-1-i)));
+                        tape_render_polarity(symdef_asd[sym].polarity);
+                        for( int p = 0; p < 256 && symdef_asd[sym].pulses[p]; ++p ) {
+                            tape_render_sync(symdef_asd[sym].pulses[p]);
+                        }
+                    }
 
-                    // @fixme: apply polarity per bit, not byte
-                    tape_render_polarity(symdef_asd[0].polarity);
-                    tape_render_data(&data, 1, NB > 8 ? 8 : NB, zero, one, 2);
-
-                    NB -= 8;
+                    totd -= NB;
                 }
+                tape_render_pause(pause);
+
+                if( (NB != 1 && NB != 8) )
+                warning = "Report this tape: TZX block $19 not fully supported.";
 
             break; case 0x20: // OK(0) // TheMunsters, Untouchables(HitSquad)
                 blockname = "pauseOrStop";
@@ -235,7 +241,7 @@ int tzx_load(const byte *fp, int len) {
                 bytes  = (*src++); bytes  |= (*src++)*0x100;
                 src += 0;
 
-            break; case 0x24: // OK?: HollywoodPoker, MarioBros
+            break; case 0x24: // OK?: Hol-lywoodPoker, MarioBros
                 blockname = "loopStart";
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += 0;
@@ -324,15 +330,16 @@ int tzx_load(const byte *fp, int len) {
                 blockname = "48KStopTape";
                 count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
-                if(ZX < 128) tape_render_stop(), tape_render_pause(HYPER_LARGE_PAUSE); // @fixme: || page128 & 16
-                else tape_render_pause(1000); // experimental
+                if(ZX < 128) tape_render_stop(); // @fixme: || page128 & 16
+                tape_render_pause(HYPER_LARGE_PAUSE); // tape_render_pause(1000); // experimental
 
-            break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3
+            break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3, mercenary3.tzx
                 blockname = "signalLevel";
-                count  = (*src++); count  |= (*src++)*0x100;
-                byte level = (*src++);
-                src += 0;
-                alert("signalLevel block tape found! please check (0x2b)");
+                count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
+                byte level = (*src);
+                src += count;
+
+                tape_render_polarity(level);
 
             break; case 0x30: // OK(0)
                 blockname = "Text";
@@ -344,12 +351,18 @@ int tzx_load(const byte *fp, int len) {
                 if( strbegi(debug, "SIDE") || strstri(debug, "SIDE ") || !strcmp(debug,"B") || !strcmp(debug,"2") )
                     tape_render_pause(HYPER_LARGE_PAUSE);
 
+                // 
+                if( strbegi(debug, "LEVEL") || strstri(debug, "LEVEL ") )
+                    tape_render_pause(HYPER_LARGE_PAUSE);
+
             break; case 0x31: // OK(0)
                 blockname = "Message";
                 count  = (*src++); // timeout secs
                 count  = (*src++);
                 debug = va("%.*s", count, src);
                 src += count;
+
+                alert(debug);
 
             break; case 0x32: // IGNORED (OK)
                 blockname = "fileInfo";
@@ -365,8 +378,11 @@ int tzx_load(const byte *fp, int len) {
                 blockname = "+glue";
                 src += 9;
 
+#if 1
                 tape_render_pause(HYPER_LARGE_PAUSE);
+#else
                 tape_render_stop(); //< probably a good idea
+#endif
 
             break; case 0x16: // DEPRECATED
                 blockname = "c64Data (deprecated)";
@@ -402,6 +418,8 @@ int tzx_load(const byte *fp, int len) {
     }
 
     tape_finish();
+
+    if( warning ) alert( warning );
     return valid;
 }
 

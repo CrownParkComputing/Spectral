@@ -257,10 +257,10 @@ void run(int do_sim, int do_int, int TS, int x, int y, TPixel *pix) {
     if(do_sim) zx_int = do_int;
     if(TS<=0) { printf("error in scanline, TS=%d\n", TS); return; }
 
-    extern Tigr* app;
-    rgba *texture = pix && y >= 0 && y < _240 ? (rgba*)&pix[x + y * _320] : (rgba*)NULL;
-    rgba *begin = (rgba*)&app->pix[0];
-    rgba *end = (rgba*)&app->pix[_319 + _239 * _320];
+    extern Tigr* canvas;
+    rgba *texture = pix && y >= 0 && y < _192 ? (rgba*)&pix[x + y * _256] : (rgba*)NULL;
+    rgba *begin = (rgba*)&canvas->pix[0];
+    rgba *end = (rgba*)&canvas->pix[_255 + _191 * _256];
 
     uint64_t epoch = ticks;
     int is_paper = TS == 128;
@@ -289,7 +289,7 @@ void run(int do_sim, int do_int, int TS, int x, int y, TPixel *pix) {
         if( ZX_TURBOROM && tape_feeding() ) is_contended = 0;
 
         #ifdef DEBUG_SCANLINE
-        //memset32(texture - x, ~0u, _320);
+        //memset32(texture - x, ~0u, _256);
         //sys_sleep(1000/60.);
         #endif
 
@@ -422,7 +422,7 @@ void blur(window *win) {
     static int j = 0;
     static byte jj = 0;
 
-    for( int y = _24; y < _240-_24; ++y ) {
+    for( int y = _24; y < _192-_24; ++y ) {
         rgba *texture = &((rgba*)win->pix)[_32 + y * width];
 
         for(int x=0;x<_32;x++) {
@@ -495,7 +495,7 @@ void scanlines(window *win) {
     // hsv: slow. may be better in a shader
     int height = _24+192+_24;
     int width = _32+256+_32;
-    for(int y = 0; y < _240; y+=2) {
+    for(int y = 0; y < _192; y+=2) {
         rgba *texture = &((rgba*)win->pix)[0 + y * width];
         for(int x = 0; x < width; ++x) {
             unsigned pix0 = texture[x];
@@ -507,24 +507,32 @@ void scanlines(window *win) {
 }
 
 void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanlines (1)
-    extern window *app;
+    extern window *canvas;
 
     // notify new frame
     if(do_sim) frame_new();
 
+    // zx_int = 1;
+    //
+    // @fixme: we've been historically interrupting the z80 twice a frame during the lifetime of this emulator
+    // should be only once per frame, not twice.
+    //
+    // games that are sensitive to INT placement: 
+    // 48: aticatac(game), sidewize(game), parapshock(menu), arkanoid(game), 
+    // 128: blacklamp128(game)
+    // +3: bonanzabros.dsk(menu), 
+    // ANY: floatspy.tap, overscan.tap, 
+
     // drawmode < 0 (no render), == 0 (frame based), > 0 (scanline based)
-    TPixel *pix = drawmode < 0 ? NULL : app->pix;
+    TPixel *pix = drawmode < 0 ? NULL : canvas->pix;
 
     // timing constants YY(vertical scanline), XX(horizontal T), PP(horizontal T for Pentagon), BR(border)
-    #define ENUM(a,b,c,d,...) ifdef(DEV,static int, enum{) a,b,c,d ifndef(DEV,}); ifdef(DEV,__VA_ARGS__)
-    ENUM( YY = 0, XX = 27, ZZ = 0, BR = 32,
-        if( ZX_DEVTOOLS ) {
-        if( key_repeat('Y') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY = (YY+1) % 80, XX, ZZ, BR);
-        if( key_repeat('X') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX = (XX+1) % (228), ZZ, BR);
-        if( key_repeat('Z') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX, ZZ = (ZZ+1) % (228), BR);
-        if( key_repeat('B') ) printf("YY:%d XX:%d ZZ:%d BR:%d\n", YY, XX, ZZ, BR = (BR+1) % ((228-128)/2));
-        }
-    );
+    #define ENUM(...) ifdef(DEV,static int, enum{) __VA_ARGS__ ifndef(DEV,}); ifndef(DEV,, \
+        if( ZX_DEVTOOLS ) { \
+        if( key_repeat('A') ) printf("ADD:%d XX:%d BR:%d\n", ADD = (ADD+1) % 228, XX, BR); \
+        if( key_repeat('X') ) printf("ADD:%d XX:%d BR:%d\n", ADD, XX = (XX+1) % (228), BR); \
+        if( key_repeat('B') ) printf("ADD:%d XX:%d BR:%d\n", ADD, XX, BR = (BR+1) % ((228-128)/2)); \
+        } );
 
     // tests used:
     // debugbreak[48/128/Plus3/Pentagon].z80 to test the scanline Y/INT placement
@@ -541,12 +549,14 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
 
         enum { _32 = _24 + 8 }; // _24 + OFFSET_Y };
 
-        enum { TS = 224, XX = 188, YY = 319 };
+        ENUM( TS = 224, XX = 188, BR = 32, ADD = 0 );
+        run(do_sim,1,TS-XX,0,-1,NULL);
         for( int y = 0; y <   80; ++y ) run(do_sim,0,TS,0,y-(80-_32),pix);
         for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_32+y,pix),run(do_sim,0,128,BR*2,_32+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_32+y,pix);
         for( int y = 0; y < 48-1; ++y ) run(do_sim,0,TS,0,_32+192+y,pix);
-        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
+        run(do_sim,0,XX,0,-1,NULL);
 
+        //< @fixme: ADD here could be maybe 10Ts, according to 48k/128k cases. not sure.
     }
     else if( ZX < 128 ) {
         // 48K: see https://wiki.speccy.org/cursos/ensamblador/interrupciones http://www.zxdesign.info/interrupts.shtml
@@ -554,13 +564,16 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
         // each scanline = 48 hsync + 24 border + 128 paper + 24 border = 224 TS/scanline
         // total = (16+48+192+56) * 224 = 312 * (48+24+128+24) = 312 * 224 = 69888 TS
 
-        enum { TS = 224, /*XX = 25,*/ YY = 0 };
+        ENUM( TS = 224, XX = 28/**27*/, BR = 32, ADD = 4 );
+        run(do_sim,1,TS-XX,0,-1,NULL);
         for( int y = 1; y <   64; ++y ) run(do_sim,0,TS,0,y-(64-_24),pix);
         for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_24+y,pix),run(do_sim,0,128,BR*2,_24+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_24+y,pix);
         for( int y = 0; y <   56; ++y ) run(do_sim,0,TS,0,_24+192+y,pix);
-        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
+        run(do_sim,0,XX+ADD,0,-1,NULL);
 
-        // parapshok will break if INT is misplaced to another line
+        // @fixme: ADD should be 0
+        // ADD(3) fixes sidewize. why?
+        // ADD(4) fixes borderbreak48. why?
 
     } else {
         // 128K:https://wiki.speccy.org/cursos/ensamblador/interrupciones https://zx-pk.ru/threads/7720-higgins-spectrum-emulator/page4.html
@@ -568,15 +581,27 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
         // each scanline = 48 hsync + 26 border + 128 paper + 26 border = 228 TS/scanline
         // total = (15+48+192+56) * 228 = 311 * (48+26+128+26) = 311 * 228 = 70908 TS
 
-        enum { TS = 228, XX=29,/*XX = 28, BR = 31,*/ YY = 2 }; // XX=27,BR=32
+        ENUM( TS = 228, XX = 27, BR = 32, ADD = 2 );
+        run(do_sim,1,TS-XX,0,-1,NULL);
         for( int y = 1; y <   63; ++y ) run(do_sim,0,TS,0,y-(63-_24),pix);
         for( int y = 0; y <  192; ++y ) run(do_sim,0,BR,0,_24+y,pix),run(do_sim,0,128,BR*2,_24+y,pix),run(do_sim,0,TS-128-BR,(128+BR)*2,_24+y,pix);
         for( int y = 0; y <   56; ++y ) run(do_sim,0,TS,0,_24+192+y,pix);
-                                        run(do_sim,0,2,0,-1,pix); //< @fixme: why do 2 additional TS fix bonanzabros.dsk? XX(29) vs hsync(26) issue?
-        run(do_sim,0,XX,0,-1,NULL),     run(do_sim,1,TS-XX,0,-1,NULL);
+        run(do_sim,0,XX+ADD,0,-1,NULL);
 
+        // @fixme: ADD should be 0
+        // ADD(2) fixes bonanzabros.dsk. why?
+        // ADD(3) crashes borderbreak. 
         // see: megashock128, bonanzabros.dsk, borderbreak128.sna
-        // sidewize.tap will freeze, floatspy.tap will break if INT is misplaced to another line
+    }
+
+    // emulate faulty ZX_HAL10H8 chip as used in 128/+2 models
+    // http://www.worldofspectrum.org/forums/showthread.php?t=38284
+    if( ZX_HAL10H8 )
+    if( (I(cpu) & 0xC0) && (ZX == 128 || ZX == 200) ) {
+        int bank = (page128 & 7);
+        int is_contended_bank = bank & 1;
+        if( I(cpu) >= 0x40 && I(cpu) < 0x80 ) PC(cpu) = 0;
+        if( I(cpu) >= 0xC0 && is_contended_bank ) PC(cpu) = 0;
     }
 
     if( drawmode <= 0 )
@@ -590,34 +615,24 @@ void frame(int drawmode, int do_sim) { // no render (<0), whole frame (0), scanl
 
     if(ZX_RF) {
         static window *blend = 0;
-        if(!blend) blend = tigrBitmap(_320, _240);
+        if(!blend) blend = tigrBitmap(_256, _192);
 
         // reset bitmap contents when re-enabling ZX_RF
-        if( refresh ) tigrBlit(blend, app, 0,0, 0,0, _320,_240);
+        if( refresh ) tigrBlit(blend, canvas, 0,0, 0,0, _256,_192);
 
         // ghosting
-        tigrBlitAlpha(blend, app, 0,0, 0,0, _320,_240, 0.5f); //0.15f);
-        tigrBlit(app, blend, 0,0, 0,0, _320,_240);
+        tigrBlitAlpha(blend, canvas, 0,0, 0,0, _256,_192, 0.5f); //0.15f);
+        tigrBlit(canvas, blend, 0,0, 0,0, _256,_192);
 
         // scanlines
-        scanlines(app);
+        scanlines(canvas);
 
         // aberrations
         flick_hz ^= 1; // &1; // (rand()<(RAND_MAX/255));
         flick_frame = cpu.r; // &1; // (rand()<(RAND_MAX/255));
-        blur(app);
+        blur(canvas);
     }
 #endif
-
-    // emulate faulty ZX_HAL10H8 chip as used in 128/+2 models
-    // http://www.worldofspectrum.org/forums/showthread.php?t=38284
-    if( ZX_HAL10H8 )
-    if( (I(cpu) & 0xC0) && (ZX == 128 || ZX == 200) ) {
-        int bank = (page128 & 7);
-        int is_contended_bank = bank & 1;
-        if( I(cpu) >= 0x40 && I(cpu) < 0x80 ) PC(cpu) = 0;
-        if( I(cpu) >= 0xC0 && is_contended_bank ) PC(cpu) = 0;
-    }
 }
 
 const char *shader = 
@@ -688,6 +703,18 @@ const char *shader =
     "void fxShader(out vec4 fragColor, in vec2 uv){\n"
     "    vec2 fragCoord=uv*vec2(352.0*3.0,288.0*3.0);\n"
 
+    "// ultrawide ula\n"
+    "vec2 ulaRect = vec2(384.0+parameters.y*2,304.0+parameters.z*2);\n"
+    "vec2 ulaCoord = uv * ulaRect;\n"
+    "float lastPixel = (384.0-0.5)/384.0;\n"
+    "/**/ if(false && ulaCoord.x<  0.0+parameters.y) uv = vec2((  1.0+parameters.y)/ulaRect.x,uv.y);\n"
+    "else if(false && ulaCoord.x>383.0+parameters.y) uv = vec2((382.0+parameters.y)/ulaRect.x,uv.y);\n"
+    "else {}\n"
+
+    "if(false) fragColor.rgb = texture(image, uv).rgb;\n"
+
+    "else{\n"
+
 #if 1
     "    /* curvature */\n"
     "    vec2 crtUV=uv*2.-1.;\n"
@@ -723,11 +750,6 @@ const char *shader =
     "    /* mix up */\n"
     "    fragColor.rgb = color * edge.x * edge.y;\n"
 
-//    " // ultrawide ula\n"
-//    "if(uv.x<0.1) fragColor.rgb = vec3(1,0,1);\n"
-//    "else if(uv.x>0.9) fragColor.rgb = vec3(1,0,0);\n"
-
-
 #if 0
     "    /* diodes */\n"
     "    if(mod(fragCoord.y, 2.)<1.) fragColor.rgb*=.95;\n"
@@ -736,6 +758,7 @@ const char *shader =
 #elif 0
     "    fragColor = tv_grid(fragColor, gl_FragCoord.xy );\n"
 #endif
+    "}\n" // ultrawide ula
     "}\n";
 
 int load_shader(const char *filename) {

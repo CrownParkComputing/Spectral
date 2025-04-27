@@ -116,6 +116,7 @@ int export_state(FILE *fp) {
         putnn(RAM_BANK(i), 0x4000);
     }
 
+#if 0
     put16(medias);
     for( int i = 0; i < medias; ++i ) {
         printf("saving media [%d] @%f %u\n", i, media[i].pos, media[i].len);
@@ -129,12 +130,13 @@ int export_state(FILE *fp) {
     for( int i = 0; i < medias; ++i ) {
         putnn(media[i].bin, media[i].len);
     }
+#endif
 
     if( errors ) alert("export errors");
-    return errors ? 0 : count;
+    return errors ? 0 : ZX;
 }
 
-int import_state(FILE *fp) {
+int import_state(FILE *fp, unsigned flags) {
     if( !fp ) return 0;
 
     uint64_t count = 0, errors = 0, temp;
@@ -155,7 +157,7 @@ int import_state(FILE *fp) {
     check16(STATE_VERSION);
 
     get16(ZX);
-    boot(ZX,0);
+    boot(ZX, flags);
 
     // @fixme: we should put boolean flags here like: has_snow, has_contended, has_beta128, has_timings, etc
     uint16_t submodel;
@@ -208,6 +210,7 @@ int import_state(FILE *fp) {
         getnn(RAM_BANK(i), banklen);
     }
 
+#if 0
     get16(medias);
     for( int i = 0; i < medias; ++i ) {
         uint16_t pages; get16(pages);
@@ -225,9 +228,10 @@ int import_state(FILE *fp) {
         if(loadbin_(media[i].bin, media[i].len, 0, ZX))
             tape_seekf(media[i].pos); // @fixme: dsk side/sector case. needed?
     }
+#endif
 
     puts(regs("import_state"));
 
     if( errors ) alert(".sav import errors");
-    return errors ? 0 : count;
+    return errors ? 0 : ZX;
 }

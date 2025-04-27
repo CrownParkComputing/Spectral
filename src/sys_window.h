@@ -5,7 +5,7 @@
 extern Tigr *app;
 
 #define window Tigr
-#define window_flags(FS,ZOOM) (((FS) * TIGR_FULLSCREEN) | TIGR_FIXED | ((ZOOM)==2?TIGR_2X:(ZOOM)==3?TIGR_3X:(ZOOM)==4?TIGR_4X:0))
+#define window_flags(FS,ZOOM) (((FS) * TIGR_FULLSCREEN) | TIGR_AUTO/*TIGR_FIXED*/ | ((ZOOM)==2?TIGR_2X:(ZOOM)==3?TIGR_3X:(ZOOM)==4?TIGR_4X:0))
 #define window_closed() (tigrClosed(app))
 #define window_close()  (app = (app ? tigrFree(app), NULL : NULL))
 #define window_width()  (app->w)
@@ -14,8 +14,10 @@ extern Tigr *app;
 void    window_override_icons();
 
 
+#define key_held(keycode) (!!(tigrKeyHeld(app, keycode)))
+#define key_down(keycode) (!!tigrKeyDown(app, keycode))
+#define key_trigger(keycode) (!!tigrKeyDown(app, keycode)) // @todo: deprecate me, use key_down() instead
 #define key_pressed(keycode) (!!(tigrKeyDown(app, keycode) || tigrKeyHeld(app, keycode)))
-#define key_trigger(keycode) (!!tigrKeyDown(app, keycode))
 #define key_released(keycode) (!!tigrKeyUp(app, keycode))
 
 int key_repeat_(unsigned char vk, int table[256]) {

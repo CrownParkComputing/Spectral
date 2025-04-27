@@ -42,6 +42,7 @@
 #include "3rd_zip.h"
 #include "3rd_rar.h"
 #define DIR_C
+#define DIR_EXCLUDED(folder) (!strcmp(folder, ".Spectral"))
 #include "3rd_dir.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "3rd_stbimage.h"
