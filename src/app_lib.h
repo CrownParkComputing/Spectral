@@ -414,7 +414,8 @@ char *zxdb_screen_async(const char *id, int *len, int factor) {
                     screens_len[zxdb_id] = 1;
             }
             if( screens_len[zxdb_id] > 1 ) {
-                return *len = screens_len[zxdb_id], screens[zxdb_id][ZXFlashFlag][factor & 3];
+                if( len ) *len = screens_len[zxdb_id];
+                return screens[zxdb_id][ZXFlashFlag][factor & 3];
             }
         }
     }
@@ -429,7 +430,7 @@ char *zxdb_screen_async(const char *id, int *len, int factor) {
 
 
 
-int active; // @todo: rename to browsing, browser_active, or library_active
+bool browser;
 
 extern Tigr *ui;
 
@@ -499,7 +500,7 @@ void rescan(const char *folder) {
 void draw_compatibility_stats(window *layer) {
     // compatibility stats
     int total = numok+numwarn+numerr;
-    if(total && active) {
+    if(total && browser) {
     TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + _239 * _320];
     int num1 = (numok * (float)_319) / total;
     int num2 = (numwarn * (float)_319) / total;
@@ -640,7 +641,7 @@ char *search_results_v1() {
         snprintf(url, 128-1, "-Open link-\nhttps://spectrumcomputing.co.uk/entry/%.*s", zx_id_len, zx_id);
 
         if( ui_click(url, "\x19\f\f") ) cmdkey = 'LINK', cmdarg = va("%s", url + countof("-Open link-\n")-1);
-        if( ui_click(alt[0] ? alt : main, full+1) ) active = 0, cmdkey = 'ZXDB', cmdarg = va("#%.*s", zx_id_len, zx_id);
+        if( ui_click(alt[0] ? alt : main, full+1) ) browser = 0, cmdkey = 'ZXDB', cmdarg = va("#%.*s", zx_id_len, zx_id);
         if( ui_click(NULL, "\n") ); ui_y--;
     }
 
@@ -660,12 +661,12 @@ int game_filter() { // returns true if any key was pressed
 
     int anykey = 0, done = 0, clear = 0;
     // Grab any chars and add them to our buffer.
-    for(;;) {
-        int c = tigrReadChar(app);
+    for(int idx = 0;;++idx) {
+        int c = key_char(idx);
         if (c == 0) break;
         if( key_pressed(TK_CONTROL)) break;
         if( c == '\n' || c == '\r' ) { done = 1; break; }
-        if( key_pressed( TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
+        if( key_pressed(TK_ESCAPE) ) { done = 1; clear = 1; break; } // memset(chars, 0, sizeof(int)*_16); chars_count = -1; break; }
         if( c == '\b' && chars_count == 0 ) { done = 1; clear = 1; break; }
         if( c == '\t' && chars_count > 0 ) { anykey = 1; break; } // ?
         if( c <  32 && c != '\b' ) continue;
@@ -964,6 +965,9 @@ char* game_browser_v2() {
                     }
                     else if( *tab == '\x18' ) {
                         const char *search = prompt("Game search", "Wildcards allowed"/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
+                        // expand search to include more cases. eg, alien8 > ALIEN*8*, jack ii>JACK*II*, jetSetWilly>JET*SET*WILLY*
+                        // @todo: consider including this expansion into search_query_v1()
+                        if(search && search[0]) search = strchr(search, '*') ? search : zxdb_filename2title(va("%s*",search));
                         search_query_v1( search );
                     }
                     else {
@@ -1017,6 +1021,9 @@ char* game_browser_v2() {
         else
         if( *tab == '\x18' ) {
             const char *search = prompt("Game search", ""/*"Either \"#zxdb-id\", \"*text*search*\", or \"/file.ext\" path"*/, "");
+            // expand search to include more cases. eg, alien8 > ALIEN*8*, jack ii>JACK*II*, jetSetWilly>JET*SET*WILLY*
+            // @todo: consider including this expansion into search_query_v1()
+            if( search && search[0] ) search = strchr(search, '*') ? search : zxdb_filename2title(va("%s*",search));
 
             if( search && search[0] ) {
                 search_query_v1( search );
@@ -1131,6 +1138,9 @@ char* game_browser_v2() {
         scroll = scroll - (sqrt(ENTRIES_PER_PAGE) - (scroll % (int)sqrt(ENTRIES_PER_PAGE)));
         if( scroll < 0 ) scroll = 0;
     }
+
+    int larger_factor = 0;
+    const rgba *larger_preview = 0;
 
     if( list )
     for( int j = 0, cnt = 0, len; j < ENTRIES_PER_PAGE; ++j, ++cnt ) {
@@ -1320,6 +1330,15 @@ char* game_browser_v2() {
                         mouse_cursor(2);
                         ui_notify(full_title);
                         clicked = m.lb;
+
+                        // prepare to blit larger preview
+                        if( thumbnails == 12 ) {
+                            //larger_preview = (const rgba *)zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), NULL, larger_factor = 1);
+                        }
+                        else
+                        if( thumbnails == 6 ) {
+                            //larger_preview = (const rgba *)zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), NULL, larger_factor = 1);
+                        }
                     }
                 }
             }
@@ -1357,7 +1376,7 @@ char* game_browser_v2() {
         if( clicked || (chosen >= 0 && chosen == i) ) {
             selected = i;
 
-            active = 0;
+            browser = 0;
 #if 0
 //          tab = 0;
             prev = 0;
@@ -1371,6 +1390,21 @@ char* game_browser_v2() {
 
             //return NULL;
         }
+    }
+
+    // blit larger preview
+    if( larger_preview ) {
+        int f256 = 256/(1<<larger_factor), f192 = 192/(1<<larger_factor);
+
+        int x = mouse().x; // x = (x + f256) > _320 ? x - f256 : x;
+        int y = mouse().y; // y = (y + f192) > _240 ? y - f192 : y;
+
+        static float at_x = 0, at_y = 0; do_once at_x = x, at_y = y;
+        at_x = at_x * 0.90 + x * 0.10;
+        at_y = at_y * 0.90 + y * 0.10;
+
+        rgba_blit(ui, larger_preview, at_x,at_y, 0,0,f256,f192);
+        ui_rect(ui, at_x-1,at_y-1,at_x+f256+1,at_y+f192+1);
     }
 
     return NULL;

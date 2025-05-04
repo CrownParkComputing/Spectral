@@ -89,8 +89,12 @@ unsigned gamepad_update(GAMEPAD_DEVICE dev, float rumbleA, float rumbleB) {
 }
 
 unsigned gamepad() {
-    do_once GamepadInit();
-    GamepadUpdate();
+    extern Tigr *app;
+    static Tigr *init = 0;
+    if( init != app ) {
+        if( init ) GamepadShutdown();
+        GamepadInit(), init = app;
+    }
 
     unsigned pad0 = gamepad_update(GAMEPAD_0, 0, 0);
 #if 0

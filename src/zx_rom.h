@@ -183,12 +183,29 @@ IF_TURBOROM_TURBO(
 );
 }
 
-void rom_patch_klmode() {
+void rom_patch_klmode(unsigned pc) {
+    // if hot patch needed
+    if( ZX_KLMODE_PATCH_NEEDED ) 
+
     // dont patch K/L mode if trdos is present. both lg18 and trdos rom regions do overlap.
     if( !ZX_PENTAGON )
 
-    // apply hot patch
-    if( ZX_KLMODE_PATCH_NEEDED && PC(cpu) == 0x15E1 ) { // @todo: find another less hacky PC addr
+    {
+
+        // 0x15E1 used to be a stable hook for a long time, which worked in all models too.
+        // these addresses are fluctuating now since Z80 INT placement has changed recently
+        // @fixme: make them a stable/fixed address that does not need maintenance.
+        // @fixme: find another less hacky PC addr other than 0x15E1
+        unsigned pcs[] = {
+            [16]=0x15E1,
+            [48]=0x1600,
+            [128]=0x15E7,
+            [200]=0x15E7,
+            [210]=0x15DF,
+            [300]=0x15DF,
+        };
+        if( pc != pcs[ZX] ) return;
+
         int rombank = GET_MAPPED_ROMBANK();
         int basicbank = GET_BASIC_ROMBANK();
         if( rombank == basicbank ) 
@@ -211,8 +228,10 @@ void rom_patch_klmode() {
             }
 
             // submit enter key to force a refresh in rom
-            extern int keymap[5][5];
-            keymap[3][2] &= 0xFE;
+            //extern int keymap[5][5];
+            //keymap[3][2] &= 0xFE;
+            extern int nextkey;
+            nextkey = 37+1; // send ZX_ENTER+1 keystroke;
         }
     }
 }

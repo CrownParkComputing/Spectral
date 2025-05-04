@@ -67,7 +67,7 @@ void mouse_clip(int clip) {
     extern Tigr *app;
     HWND hWnd = (HWND)app->handle;
 
-    extern int active; // ui
+    extern bool browser; // ui
 
     // get client area (0,0,w,h)
     RECT dims;
@@ -79,7 +79,7 @@ void mouse_clip(int clip) {
     ClientToScreen(hWnd, (POINT*)&win.right); // convert bottom-right
 
     // wrap mouse over the edges
-    if( clip && !active ) {
+    if( clip && !browser ) {
         int w = dims.right, h = dims.bottom;
         int x = win.left, y = win.top;
 

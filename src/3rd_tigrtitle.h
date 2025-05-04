@@ -1,14 +1,7 @@
 char* tigrTitle(Tigr *win, const char *title) {
     if( title ) {
 #if DEV
-        if( strchr(title, '#'))
-            DebugBreak();
-        if( strchr(title, '$'))
-            DebugBreak();
-        if( title[sizeof("Spectral 48 - ")-1] < 0 )
-            DebugBreak();
-        if( title[sizeof("Spectral 128 - ")-1] < 0 )
-            DebugBreak();
+    	puts(title);
 #endif
 
 #ifdef __APPLE__
@@ -16,7 +9,7 @@ char* tigrTitle(Tigr *win, const char *title) {
 #elif defined _WIN32
         static wchar_t bak[128];
         wchar_t *widen(const char *);
-        _snwprintf(bak, 128, L"%s", widen(title));
+        _snwprintf(bak, 128-1, L"%s", widen(title));
 
         if(win->handle) {
             int err = SetWindowTextW((HWND)(win->handle), bak) == 0;
@@ -34,6 +27,6 @@ char* tigrTitle(Tigr *win, const char *title) {
 #endif
     }
     static char copy[128] = {0};
-    if( title ) snprintf(copy, 128, "%s", title);
+    if( title ) snprintf(copy, 128-1, "%s", title);
     return copy;
 }

@@ -112,7 +112,7 @@ int ZX_FREQ;
 
 int ZX_RF = !DEV;
 int ZX_CRT = !DEV;
-int ZX; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
+int ZX = 128; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_AY = 2; // 0: no, 1: fast, 2: accurate
 int ZX_PALETTE = 0; // 0: own, N: others
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
@@ -149,8 +149,8 @@ char *ZX_TAB = "A"; // current game letter being browsed. may be a letter or spe
 char *ZX_TITLE = 0; // current titlebar
 char *ZX_MEDIA = 0; // current mounted game
 
-const char *ZX_FOLDER_UNIX = 0;
-const char *ZX_FOLDER_WINDOWS = 0;
+char *ZX_FOLDER_UNIX = 0;
+char *ZX_FOLDER_WINDOWS = 0;
 #ifdef _WIN32
 #define ZX_FOLDER ZX_FOLDER_WINDOWS
 #else
@@ -263,6 +263,7 @@ byte beta128;
 // keyboard
 int issue2;
 int keymap[5][5];
+int nextkey;
 
 // joysticks
 byte fuller,kempston,kempston2;
@@ -697,7 +698,7 @@ int reload(int model) {
 enum SpecKeys {
     ZX_0,ZX_1,ZX_2,ZX_3,ZX_4,ZX_5,  ZX_6,ZX_7,ZX_8,ZX_9,ZX_A,ZX_B,  ZX_C,ZX_D,ZX_E,ZX_F,ZX_G,ZX_H,
     ZX_I,ZX_J,ZX_K,ZX_L,ZX_M,ZX_N,  ZX_O,ZX_P,ZX_Q,ZX_R,ZX_S,ZX_T,  ZX_U,ZX_V,ZX_W,ZX_X,ZX_Y,ZX_Z,
-    ZX_SPACE,ZX_ENTER,ZX_SHIFT,ZX_SYMB,ZX_CTRL
+    ZX_SPACE,ZX_ENTER,ZX_SHIFT,ZX_SYMB
 };
 #define ZXKey(a) ( keymap[ keytbl[a][0] ][ keytbl[a][1] ] &= keytbl[a][2] )
 #define ZXKeyboardClear() \
@@ -707,20 +708,16 @@ enum SpecKeys {
     keymap[4][1] = keymap[4][2] = 0xFF;
 
 const unsigned char keytbl[256][3] = {
-    {1, 2, 0xFE}, {1, 1, 0xFE}, {1, 1, 0xFD}, /* 0|1|2 */
-    {1, 1, 0xFB}, {1, 1, 0xF7}, {1, 1, 0xEF}, /* 3|4|5 */
-    {1, 2, 0xEF}, {1, 2, 0xF7}, {1, 2, 0xFB}, /* 6|7|8 */
-    {1, 2, 0xFD}, {3, 1, 0xFE}, {4, 2, 0xEF}, /* 9|a|b */
-    {4, 1, 0xF7}, {3, 1, 0xFB}, {2, 1, 0xFB}, /* c|d|e */
-    {3, 1, 0xF7}, {3, 1, 0xEF}, {3, 2, 0xEF}, /* f|g|h */
-    {2, 2, 0xFB}, {3, 2, 0xF7}, {3, 2, 0xFB}, /* i|j|k */
-    {3, 2, 0xFD}, {4, 2, 0xFB}, {4, 2, 0xF7}, /* l|m|n */
-    {2, 2, 0xFD}, {2, 2, 0xFE}, {2, 1, 0xFE}, /* o|p|q */
-    {2, 1, 0xF7}, {3, 1, 0xFD}, {2, 1, 0xEF}, /* r|s|t */
-    {2, 2, 0xF7}, {4, 1, 0xEF}, {2, 1, 0xFD}, /* u|v|w */
-    {4, 1, 0xFB}, {2, 2, 0xEF}, {4, 1, 0xFD}, /* x|y|z */
-    {4, 2, 0xFE}, {3, 2, 0xFE}, {4, 1, 0xFE}, /* SPC|ENT|SHF */
-    {4, 2, 0xFD}, {1, 2, 0xEF},               /* SYMB|CTRL */
+    {1, 2, 0xFE}, {1, 1, 0xFE}, {1, 1, 0xFD}, {1, 1, 0xFB}, /* 0|1|2|3 */
+    {1, 1, 0xF7}, {1, 1, 0xEF}, {1, 2, 0xEF}, {1, 2, 0xF7}, /* 4|5|6|7 */
+    {1, 2, 0xFB}, {1, 2, 0xFD}, {3, 1, 0xFE}, {4, 2, 0xEF}, /* 8|9|a|b */
+    {4, 1, 0xF7}, {3, 1, 0xFB}, {2, 1, 0xFB}, {3, 1, 0xF7}, /* c|d|e|f */
+    {3, 1, 0xEF}, {3, 2, 0xEF}, {2, 2, 0xFB}, {3, 2, 0xF7}, /* g|h|i|j */
+    {3, 2, 0xFB}, {3, 2, 0xFD}, {4, 2, 0xFB}, {4, 2, 0xF7}, /* k|l|m|n */
+    {2, 2, 0xFD}, {2, 2, 0xFE}, {2, 1, 0xFE}, {2, 1, 0xF7}, /* o|p|q|r */
+    {3, 1, 0xFD}, {2, 1, 0xEF}, {2, 2, 0xF7}, {4, 1, 0xEF}, /* s|t|u|v */
+    {2, 1, 0xFD}, {4, 1, 0xFB}, {2, 2, 0xEF}, {4, 1, 0xFD}, /* w|x|y|z */
+    {4, 2, 0xFE}, {3, 2, 0xFE}, {4, 1, 0xFE}, {4, 2, 0xFD}, /* SPC|ENT|SHF|SYM */
 };
 
 // 16/48
@@ -885,6 +882,7 @@ void config(int ZX) {
         MEMw[0]=DUMMY_BANK(0);
 
         issue2=1;
+        nextkey=0;
         page128=32; // -1
         page2a=128; // -1
 
@@ -1044,9 +1042,9 @@ uint64_t transact(uint64_t pins) {
         // if( !IFF1(cpu) && ZX <= 200 && !(page128 & 16) )
 
         if (pc == 0x09F4 /*&& SP(cpu) < 0x4000*/) {
-            uint8_t channel_k = READ8( IY(cpu) + 0x30 ) & 16; // FLAGS2
-            uint8_t is_lower_screen = READ8( IY(cpu) + 2 ) & 1; // TV_FLAG
-            if (!channel_k /*&& !is_lower_screen*/ ) {
+            int is_channel_k = READ8( IY(cpu) + 0x30 ) & 16; // FLAGS2
+            int is_lower_screen = READ8( IY(cpu) + 2 ) & 1; // TV_FLAG
+            if (!is_channel_k /*&& !is_lower_screen*/ ) {
                 char ch = cpu.a; // & 0x7f;
                 // if(ch >= 0x7F ) printf(printer, "%c", "© ▝▘▀▗▐▚▜▖▞▌▛▄▟▙█"[ch - 0x7f]);
                 // else
@@ -1057,6 +1055,9 @@ uint64_t transact(uint64_t pins) {
             }
         }
 #endif
+
+        // apply hot patch. K/L input mode
+        //if( pc == 0x15E1 && ZX_KLMODE_PATCH_NEEDED ) rom_patch_klmode(pc);
 
         // disasm
         int do_disasm = pc >= 0x38 && pc < 0x45; // mouse().rb;
@@ -1082,6 +1083,9 @@ uint64_t transact(uint64_t pins) {
                     MEMr[0] = rom + 0x4000 * (page128 & 16 ? 1 : 0); // * 1; restore rom1
                 }
             }
+            // @todo: expensive, but may be good place for MF1/MF3 shadow rom
+            // @todo: expensive, but may be good place for 0x15E1 K/L mode hook
+            // @todo: expensive, but may be good place for .tap traps
 
             uint8_t value = READ8(addr);
             Z80_SET_DATA(pins, value);
@@ -1244,6 +1248,10 @@ void sys_audio() {
     }
 
     if( do_audio && sample_ready ) {
+#if 0
+        static float buzz_prev = 0;
+        if( ZX_AY == 2 ) buzz.sample = 1.1 * low_pass_filter_10khz(buzz.sample, &buzz_prev, AUDIO_FREQUENCY);
+#endif
         output[0] = buzz.sample; // for 48K vis
 
         float master = 0.98f * !!ZX_AY; // @todo: expose ZX_AY_VOLUME / ZX_BEEPER_VOLUME instead
@@ -1621,9 +1629,9 @@ byte inport_(word port) {
     if (!(port & (0xFFFF^0xEFFE))) {
         int code = 0xFF;
 
-        // prevent emulator input being passed to zx
-        extern int active;
-        if(!active) {
+        // prevent emulator input being passed to zx. @fixme: is this check still needed?
+        extern bool browser;
+        if(!browser) {
         if (!(port & 0x0100)) code &= keymap[4][1];
         if (!(port & 0x0200)) code &= keymap[3][1];
         if (!(port & 0x0400)) code &= keymap[2][1];
@@ -1648,9 +1656,9 @@ byte inport_(word port) {
     if(!(port & (0xFF^0xFE))) {
         byte code = 0xFF;
 
-        // prevent emulator input being passed to zx
-        extern int active;
-        if(!active) {
+        // prevent emulator input being passed to zx. @fixme: is this check still needed?
+        extern bool browser;
+        if(!browser) {
 
         // test: Without this matrix behaviour Zynaps, for instance, 
         // won't pause when you press 5,6,7,8 and 0 simultaneously. @fixme
@@ -1904,6 +1912,7 @@ struct quicksave {
     // input
     int keymap[5][5];
     int issue2;
+    int nextkey;
     // joysticks
     byte kempston,kempston2,fuller;
     // mouse
@@ -2002,6 +2011,7 @@ void* quicksave(unsigned slot) {
     // input
     memcpy(c->keymap, keymap, sizeof(int)*5*5);
     c->issue2 = issue2;
+    c->nextkey = nextkey;
     // joysticks
     c->kempston = kempston;
     c->kempston2 = kempston2;
@@ -2111,6 +2121,7 @@ void* quickload(unsigned slot) {
     // input
     memcpy(keymap, c->keymap, sizeof(int)*5*5);
     issue2 = c->issue2;
+    nextkey = c->nextkey;
     // joysticks
     kempston = c->kempston;
     kempston2 = c->kempston2;

@@ -11,6 +11,7 @@ char* download( const char *url, int *len ) { // must free() after use
     char buffer[ 4096 ];
     DWORD response_size = 0;
 
+    for( DWORD bufsz = sizeof(buffer); InternetCanonicalizeUrlA(url, buffer, &bufsz, 0) && url && (url = buffer); url = 0 )
     for( HINTERNET session = InternetOpenA("" /*"fwk.download_file"*/, PRE_CONFIG_INTERNET_ACCESS, NULL,NULL/*INTERNET_INVALID_PORT_NUMBER*/, 0); session; InternetCloseHandle(session), session = 0 ) // @fixme: download_file
     for( HINTERNET request = InternetOpenUrlA(session, url, NULL, 0, INTERNET_FLAG_RELOAD|INTERNET_FLAG_SECURE/*|INTERNET_FLAG_RESYNCHRONIZE|INTERNET_FLAG_KEEP_CONNECTION*/, 0); request; InternetCloseHandle(request), request = 0 )
     for( ; (ok = !!InternetReadFile(request, buffer, sizeof(buffer), &response_size)) && response_size > 0 ; ) {

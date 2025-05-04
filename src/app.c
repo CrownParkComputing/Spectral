@@ -13,7 +13,7 @@
 // ay player, pzx, rzx (wip), redefineable FN keys, mpg recording, mp4 recording, nmi, zx palettes,
 // gamepads, gamepad bindings, turbosound (turboAY), autofire, alt z80 rates, media selector,
 // border effects, border overscan, rainbow graphics, multicolor, HAL10H8 bugs, zoom x1..x4,
-// lenslok, resizeable, ultrawide ula,
+// lenslok, resizeable, ultrawide ula, host keyboard,
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 // scan folder if dropped or supplied via cmdline
@@ -58,12 +58,13 @@
 // [ ] zxdb: afterburner/arkanoid: cheats
 // [ ] ui_print(): dims not very accurate when ui_monospaced==0. see chasehq2 instructions boundings
 // [ ] mp3: @leak
-// [ ] mp3: [N] 404 /pub/sinclair/music/bonustracks/DeseertIsalndFloppies(DanDefoe&TheCastaways).mp3.zip|0|27|Bonus soundtrack(s) in MP3 format
+// [x] mp3: [N] 404 /pub/sinclair/music/bonustracks/DeseertIsalndFloppies(DanDefoe&TheCastaways).mp3.zip|0|27|Bonus soundtrack(s) in MP3 format
 // [x] sav: mask3.sav, cybernoid2.sav, jack2.sav
 // [ ] lower bottom megashock/
 // [ ] turborom + bleepload (sentinel, sidewize, crosswize, jaws)
 
 // @fixme
+// [x] KLmode broken
 // [x] TurboAY + output[6]
 // [x] linux tigr may ignore x2/x3 zoom settings and go x4 if (384px native * (125/100) dpi == 1920px) which matches desktop monitor
 // [ ] linux polyfill (does not work yet)
@@ -72,10 +73,10 @@
 // [ ] floating: floatspy (all models need +1 TS; 128 also needs +2TS because of bonanzadsk)
 // [ ] zxdb platoon.tap.zip with .txt file in zipentry #0
 // [ ] dsk/corrupt vram: cesare plus3.dsk, italia90.dsk
-// [ ] lightgun: billy the kid, rookie #4239, space smugglers
+// [*] lightgun: billy the kid, rookie #4239, space smugglers
 // [ ] audio: after 3 mins of play, user got white noise (jetpac)
 // [x] screen: should use overlay, and any mouse button or keypress should remove that. next step would be to add a gallery for screenshots
-// [ ] gallery: thumbnails 12x12 could use a magnified hovering rect
+// [x] gallery: thumbnails 12x12 could use a magnified hovering rect
 // [x] gallery: dim background as game list is difficult to read sometimes
 // [ ] gallery: wordwap needed when thumbnail names are too large: "Sherlock Holmes: The Lamberley Mystery (1990)(Zenobi Software)"
 // [ ] mouse: wheel linux (@juntelart)
@@ -201,7 +202,7 @@
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.09"
+#define SPECTRAL "v1.09b"
 
 #if NDEBUG >= 2
 #define DEV 0
@@ -393,6 +394,7 @@ int load_config() {
         }
         extern int cmdkey;
         extern const char* cmdarg;
+        ZX_PENTAGON = ZX & 1; ZX &= ~1;
         if(ZX_FOLDER && ZX_FOLDER[0] > 32) cmdkey = 'SCAN', cmdarg = ZX_FOLDER;
     }
     return !errors;
@@ -695,6 +697,7 @@ int vk_find( int vk ) {
 void input() {
     // keyboard
     ZXKeyboardClear();
+    if(nextkey>0) ZXKey((nextkey&255)-1),nextkey=nextkey>>8;
 
     // gamepad
     const unsigned pad = gamepad(), pad2 = pad;
@@ -743,13 +746,45 @@ void input() {
             k(K)k(L)k(M)k(N)k(O)k(P)k(Q)k(R)k(S)k(T)\
             k(U)k(V)k(W)k(X)k(Y)k(Z)
         #define K(x) if(keys[ 0[#x] ]) ZXKey(ZX_##x);
-        KEYS(K);
-        if(keys[TK_SPACE])      {ZXKey(ZX_SPACE); /*if(mic_on) mic_on = 0, tap_prev();*/ }
-        if(keys[TK_BACKSPACE])  {ZXKey(ZX_SHIFT); ZXKey(ZX_0);}
-        if(keys[TK_RETURN])      ZXKey(ZX_ENTER);
-        if(keys[TK_SHIFT])       ZXKey(ZX_SHIFT);
-        if(keys[TK_CONTROL])     ZXKey(ZX_SYMB);
-        if(keys[TK_ALT])         ZXKey(ZX_CTRL);
+
+#if 0
+        int ZX_USE_PC_KEYBOARD = 1; //ZX_KLMODE;
+        bool basic = PC(cpu) < 0x4000; // && (GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() || GET_MAPPED_ROMBANK() == GET_EDITOR_ROMBANK());
+        if( basic && ZX_USE_PC_KEYBOARD ) {
+            int chr = key_char(0);
+            if( chr ) for( const char *sym = "0123456789abcdefghijklmnopqrstuvwxyz \n", *peek = strchr(sym, chr); peek; peek = 0, chr = 0) {
+                ZXKey(ZX_0 + (peek - sym));
+            }
+            if( chr ) for( const char *sym = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", *peek = strchr(sym, chr); peek; peek = 0, chr = 0) {
+                ZXKey(ZX_SHIFT), ZXKey(ZX_A + (peek - sym));
+            }
+            if( chr ) for( const char *sym = "_!@#$%&'()a*?defg^i-+=.,;\"q<s>u/w$y:", *peek = strchr(sym, chr); peek && !isalpha(*peek); peek = 0, chr = 0) {
+                ZXKey(ZX_SYMB), ZXKey(ZX_0 + (peek - sym));
+            }
+            if( chr ) for( const char *sym = "`bc\\e{}hijklmno\xa9qrst]vwx[z", *peek = strchr(sym, chr); peek && !isalpha(*peek); peek = 0, chr = 0) {
+                WRITE8(0x5C41, 1); // MODE, E cursor
+                ZXKey(ZX_SYMB), ZXKey(ZX_A + (peek - sym));
+            }
+            // special keys
+            //if(keys[TK_ESCAPE])    ZXKey(ZX_SHIFT), ZXKey(ZX_1);
+            if(keys[TK_BACKSPACE]) ZXKey(ZX_SHIFT), ZXKey(ZX_0);
+            if(keys[TK_CAPSLOCK])  ZXKey(ZX_SHIFT), ZXKey(ZX_2);
+            if(keys[TK_CONTROL] && !keys[TK_ALT]) { // CTRL only, no ALTGR
+                int do_numbers = 1, do_letters = 1;
+                if( do_numbers ) for( int i = 0; i <= 9; ++i ) if(keys['0'+i]) ZXKey(ZX_SHIFT), ZXKey(ZX_0+i), do_letters = 0;
+                if( do_letters ) { ZXKey(ZX_SYMB); KEYS(K); }
+            }
+        }
+        else 
+#endif
+        {
+            KEYS(K);
+            if(keys[TK_SPACE])      {ZXKey(ZX_SPACE); /*if(mic_on) mic_on = 0, tap_prev();*/ }
+            if(keys[TK_BACKSPACE])  {ZXKey(ZX_SHIFT); ZXKey(ZX_0);}
+            if(keys[TK_RETURN])      ZXKey(ZX_ENTER);
+            if(keys[TK_SHIFT])       ZXKey(ZX_SHIFT);
+            if(keys[TK_CONTROL])     ZXKey(ZX_SYMB);
+        }
     }
 
     // z80_opdone() returns 0 indefinitely while z80 is in halt state, often seen during BASIC sessions.
@@ -816,6 +851,7 @@ void titlebar(const char *filename) {
     const char *titlebar = ZX_PLAYER ? __argv[0] : va("Spectral%s %s%s%s", DEV ? " DEV" : "", models[(ZX/16)|ZX_PENTAGON], title[0] ? " - " : "", title);
     window_title(titlebar);
 
+    if( ZX_TITLE != title )
     (free(ZX_TITLE), ZX_TITLE = strdup(title));
 }
 
@@ -832,12 +868,12 @@ void draw_ui() {
     if( m.cursor == 0 ) {
         m.x = _320/2, m.y = _240/2; // ignore mouse; already clipped & hidden (in-game)
     } else {
-        if( !active ) mouse_cursor(1);
+        if( !browser ) mouse_cursor(1);
     }
 
     // ui animation
     enum { _60 = 58+8-4 };
-    int hovering_border = !active && !do_overlay && (m.x > (_320 - _60) || m.x < _60 );
+    int hovering_border = !browser && !do_overlay && (m.x > (_320 - _60) || m.x < _60 );
     static float smooth; do_once smooth = hovering_border;
     smooth = smooth * 0.75 + hovering_border * 0.25;
     // left panel: game options
@@ -860,13 +896,13 @@ void draw_ui() {
         //ui_at(ui, chr_x, chr_y);
         if( ZX_BROWSER == 2 ) {
             // ZXDB builds
-            if( ui_click(active ? "Resume" : "Pause", active ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // active ^= 1, ui_dialog_new(NULL);
+            if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
         } else {
             // NOZXDB builds
             if( !numgames )
             if( ui_click("- Scan games folder -", "%c\n", FOLDER_CHR) ) cmdkey = 'SCAN';
             if(  numgames )
-            if( ui_click(active ? "Resume" : "Pause", active ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // active ^= 1, ui_dialog_new(NULL);
+            if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
         }
 
         // tape controls, top-left
@@ -1278,14 +1314,14 @@ void draw_ui() {
         if( ui_click("- Debug -", "") ) cmdkey = 'DEV'; // send disassemble command
     }
 
-    if( record_active() && ZXFlashFlag ) {
+    if( record_enabled() && ZXFlashFlag ) {
         ui_print(ui, _320-8*1-3, 0*11+4-2+2+1-2-1, ui_colors, "\2\7" );
     }
 
 #if 1
-    if( active ) {
+    if( browser ) {
         ui_at(ui, 1*11-4+2-8+2, 0*11+4-2);
-        if( ui_click(active ? "Resume" : "Pause", active ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // active ^= 1, ui_dialog_new(NULL);
+        if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
     }
 #endif
 
@@ -1300,7 +1336,7 @@ void draw_ui() {
 
     // bottom slider: tape browser
     const int TOFF = _320/36, T320 = _320 - TOFF;
-    int visible = !active && !do_overlay && BAR_VISIBLE();
+    int visible = !browser && !do_overlay && BAR_VISIBLE();
     static float smoothY; do_once smoothY = visible;
     smoothY = smoothY * 0.75 + visible * 0.25;
     if( smoothY > 0.01 )
@@ -1364,7 +1400,7 @@ void draw_ui() {
     // bottom slider. @todo: rewrite this into a RZX player/recorder
     if( 0 )
     if( ZX_DEBUG )
-    if( !active && !do_overlay ) {
+    if( !browser && !do_overlay ) {
         static float my_var = 0; // [-2,2]
 
         TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
@@ -1409,10 +1445,10 @@ char* game_browser(int version) { // returns true if loaded
 
     if( !numgames && !zxdb_loaded() ) return 0;
 
-    if( !active ) return 0;
+    if( !browser ) return 0;
 
     // game browser
-    if( active ) {
+    if( browser ) {
         // disable overlay
         if( do_overlay ) tigrClear(overlay, tigrRGBA(0,0,0,0));
         do_overlay = 0;
@@ -1596,7 +1632,7 @@ int main() {
     audio_init();
 
     // zx
-    boot(128, 0);
+    boot(ZX|ZX_PENTAGON/*128*/, 0);
 
     // load embedded games (if any)
     {
@@ -1665,12 +1701,13 @@ int main() {
 
 #endif
 
+        key_read();
         ui_frame_begin();
         input();
         if(do_overlay) ZXKeyboardClear(); // do not submit keys to ZX while overlay is drawn on top
 
         // handle ESC/RMB (cancel buttons)
-        int escape = key_trigger( TK_ESCAPE);
+        int escape = key_trigger(TK_ESCAPE);
         int cancel = escape || mouse().rb;
         if( cancel ) {
             // cancel dialog
@@ -1695,11 +1732,11 @@ int main() {
             : ZX_FASTTAPE && disk_likely_loading ? 1
             : 0;
 
-        if( active ) media_accelerated = 0;
+        if( browser ) media_accelerated = 0;
 
         // z80, ula, audio, etc
         // static int frame = 0; ++frame;
-        int do_sim = active ? 0 : 1;
+        int do_sim = browser ? 0 : 1;
         int do_drawmode = 1; // no render (<0), full frame (0), scanlines (1)
         int do_flashbit = media_accelerated ? 0 : 1;
         int do_runahead = media_accelerated ? 0 : ZX_RUNAHEAD;
@@ -1732,7 +1769,8 @@ int main() {
 
         if( ZX_TURBOROM )
         rom_patch_turbo();
-        rom_patch_klmode();
+        rom_patch_klmode(PC(cpu));
+        //printf("%X\n",PC(cpu));
 
         static byte counter = 0; // flip flash every 16 frames @ 50hz
         if( !((++counter) & 15) ) if(do_flashbit) ZXFlashFlag ^= 1;
@@ -1757,7 +1795,7 @@ if( do_runahead == 0 ) {
 
         // @todo: optimize me
         tigrClear(app, tigrRGB(0,0,0));
-        tigrClear(ui, !active && !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
+        tigrClear(ui, !browser && !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
 
         // blit zx layer (canvas) to main app
         {
@@ -1791,7 +1829,7 @@ if( do_runahead == 0 ) {
 
         char* game = game_browser(ZX_BROWSER);
         if( game ) {
-            active = 0;
+            browser = 0;
 
             bool insert_next_disk_or_tape = false;
             if( ZX_TITLE ) { // @fixme: ZXDB might use ZX_MEDIA and search for sequential #X diffs instead
@@ -1842,6 +1880,7 @@ if( do_runahead == 0 ) {
             if( loadfile(game,use_preloader,model) ) {
                 titlebar(game);
 
+                if( ZX_MEDIA != game )
                 (free(ZX_MEDIA), ZX_MEDIA = strdup(game));
 
                 // clear window keys so the current key presses are not being sent to the 
@@ -1924,18 +1963,19 @@ if( do_runahead == 0 ) {
         gui(dev_status), rec(ZX_PRINTUI ? app : canvas);
 
         #define LOAD(ZX,TURBO,file) if(file) do { \
-                boot(ZX, 0); if(TURBO || key_pressed(TK_CONTROL)) rom_patch_turbo(); \
-                if( !loadfile(file,1,0) ) { \
-                    if( !load_shader( file ) ) { \
+                if( !load_shader( file ) ) { \
+                    boot(ZX, 0); if(TURBO || key_pressed(TK_CONTROL)) rom_patch_turbo(); \
+                    if( !loadfile(file,1,0) ) { \
                         if( is_folder(file) ) cmdkey = 'SCAN', cmdarg = file; \
                         else alert(va("cannot open '%s' file\n", file)); \
-                    } \
-                } else titlebar(file), (free(ZX_MEDIA), ZX_MEDIA = strdup(file)); \
+                    } else titlebar(file), (free(ZX_MEDIA), ZX_MEDIA = strdup(file)); \
+                } \
             } while(0)
 
         // parse drag 'n drops. reload if needed
         for( char **list = tigrDropFiles(app,0,0); list; list = 0)
         for( int i = 0; list[i]; ++i ) {
+        	while( strchr("\r\n", list[i][strlen(list[i])-1]) ) list[i][strlen(list[i])-1] = '\0';
             #if TESTS
             LOAD(48,1,list[i]);
             #else
@@ -1967,10 +2007,10 @@ if( do_runahead == 0 ) {
             #if DEV
             if(cmdkey_) alert(va("command not found `%08x`", cmdkey_));
             #endif
-            break; case 'GAME':  if( ZX_BROWSER == 1 ? numgames : 1 ) active ^= 1, ui_dialog_new(NULL);
+            break; case 'GAME':  if( ZX_BROWSER == 1 ? numgames : 1 ) browser ^= 1, ui_dialog_new(NULL);
             break; case 'MAX':   ZX_FASTCPU = 1; // fast-forward cpu (hold)
 
-            break; case 'PLAY':  tape_play(1); ZX_AUTOSTOP = 0; ZX_AUTOPLAY = 0; // tape_play(!tape_playing()); /*if(!tape_inserted()) active ^= 1; else tape_play(!tape_playing());*/ // open browser if start_tape is requested but no tape has been ever inserted
+            break; case 'PLAY':  tape_play(1); ZX_AUTOSTOP = 0; ZX_AUTOPLAY = 0; // tape_play(!tape_playing()); /*if(!tape_inserted()) browser ^= 1; else tape_play(!tape_playing());*/ // open browser if start_tape is requested but no tape has been ever inserted
             break; case 'PREV':  tape_prev();
             break; case 'NEXT':  tape_next();
             break; case 'STOP':  tape_stop();  ZX_AUTOPLAY = 0; ZX_AUTOSTOP = 0;
@@ -2054,9 +2094,9 @@ if( do_runahead == 0 ) {
 
             break; case 'HELP':  help();
 
-            break; case 'SCAN':  for( const char *f = cmdarg_ && cmdarg_[0] ? cmdarg_ : app_selectfolder("Select games folder"); f ; f = 0 ) {
-                                    // ZX_FOLDER && REALLOC((void*)ZX_FOLDER, 0); // @leak (lubuntu16 would display rubbish otherwise)
-                                    rescan( ZX_FOLDER = STRDUP(f) ), /*active = !!numgames,*/ ui_dialog_new(NULL);
+            break; case 'SCAN':  for( const char *f = cmdarg_ && cmdarg_[0] ? cmdarg_ : app_selectfolder("Select games folder", ZX_FOLDER); f ; f = 0 ) {
+            						if( ZX_FOLDER != f ) free(ZX_FOLDER), ZX_FOLDER = STRDUP(f);
+                                    rescan( ZX_FOLDER ), /*browser = !!numgames,*/ ui_dialog_new(NULL);
                                 }
 
             break; case 'DEVT': ZX_DEVTOOLS ^= 1;
@@ -2181,6 +2221,7 @@ if( do_runahead == 0 ) {
             break; case 'ZXDB': {
                 eject();
                 if( zxdb_load(cmdarg_, 0) ) {
+                	if( ZX_MEDIA != cmdarg_ )
                     (free(ZX_MEDIA), ZX_MEDIA = strdup(cmdarg_));
                     // update titlebar
                     if( ZXDB.ids[0] )
@@ -2450,7 +2491,7 @@ if( do_runahead == 0 ) {
 
     // shutdown zxdb browser if user is closing window app. reasoning for this:
     // next z80_opdone() will never finish because we dont tick z80 when zxdb browser is enabled
-    // active *= !window_closed();
+    // browser *= !window_closed();
 
     #if 0 && NEWCORE
     // ensure there is no pending opcode before exiting main loop: spectral.sav would be corrupt otherwise.
@@ -2469,16 +2510,17 @@ if( do_runahead == 0 ) {
     if(!ZX_PLAYER)
 
     {
-        // export config
-        if(ZX_MEDIA) ZX_MEDIA = strdup(va("%s@%llu", ZX_MEDIA, media_seek[0] = voc_pos)); // @leak
-        save_config();
-
         // export state
         // media_seek[0] = voc_pos / (double)(voc_len+!voc_len);
         for( FILE *state = fopen("Spectral.sav","wb"); state; fclose(state), state = 0) {
             if( !export_state(state) )
                 alert("Error exporting state");
         }
+
+        // export config
+        ZX = ZX | ZX_PENTAGON;
+        if(ZX_MEDIA) ZX_MEDIA = strdup(va("%s@%llu", ZX_MEDIA, media_seek[0] = voc_pos)); // @leak
+        save_config();
     }
 
     tigrFree(app);
@@ -2509,7 +2551,7 @@ int gui(const char *status) {
     }
 
     // audio, stats & debug
-    if( !active && !do_overlay ) {
+    if( !browser && !do_overlay ) {
         if( ZX_WAVES && ZX_AY > 0 ) {
             int count = _320;
             int tail = audio_write - count;
@@ -2600,7 +2642,7 @@ int rec(Tigr *canvas) {
     }
     // videos
     if( cmdkey == 'REC2' ) {
-        /**/ if( record_active() ) record_stop(), play('tape', 0);
+        /**/ if( record_enabled() ) record_stop(), play('tape', 0);
         else switch( record_start(va("%s-%04x.mp4", window_title(NULL), file_counter(SLOT_MP4)), window_width(), window_height(), 50) ) {
                 default: alert("Cannot record video");
                 break; case 2: play('tape', 1);
@@ -2608,7 +2650,7 @@ int rec(Tigr *canvas) {
         }
     }
     // video
-    if( record_active() ) {
+    if( record_enabled() ) {
         record_frame( canvas->pix, canvas->w, canvas->h );
     }
     return 1;

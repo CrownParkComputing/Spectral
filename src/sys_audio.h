@@ -197,3 +197,32 @@ int play(int sample_id, unsigned count) {
 void mixer_reset() {
     memset(voice, 0, sizeof(voice));
 }
+
+
+/* 
+ * Applies a 10kHz low-pass filter to a normalized float audio stream.
+ * 
+ * @param input: Float input sample in range [0, 1].
+ * @param prev_output: Previous filtered output (for IIR filter state), in [-1, 1].
+ * @param sample_rate: Audio sample rate in Hz (e.g., 44100).
+ * @return: Filtered output sample in range [0, 1].
+ */
+float low_pass_filter_10khz(float input, float *prev_output, float sample_rate) {
+    // Convert input from [0, 1] to bipolar [-1, 1]
+    float x = 2.0f * input - 1.0f;
+    
+    // Calculate filter coefficient (alpha) for 10kHz cutoff
+    float cutoff_freq = 10000.0f; // 10kHz
+    float dt = 1.0f / sample_rate;
+    float RC = 1.0f / (2.0f * 3.1415926535897932384626433832795f * cutoff_freq);
+    float alpha = dt / (RC + dt);
+    
+    // Apply first-order IIR filter: y[n] = (1-alpha)*y[n-1] + alpha*x[n]
+    float y = (1.0f - alpha) * (*prev_output) + alpha * x;
+    
+    // Update previous output for next iteration
+    *prev_output = y;
+    
+    // Convert output from [-1, 1] back to [0, 1]
+    return 0.5f * (y + 1.0f);
+}

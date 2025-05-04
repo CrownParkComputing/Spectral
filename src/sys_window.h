@@ -14,6 +14,14 @@ extern Tigr *app;
 void    window_override_icons();
 
 
+static int key_char[16] = {0}, key_chars = 0; // key_char = tigrReadChar(app);
+#define key_char(idx) key_char[(idx) % 16]
+#define key_read() do {\
+    memset(key_char,0,sizeof(key_char)); \
+    key_chars = 0; \
+    do key_char[key_chars++] = tigrReadChar(app); while( key_chars < 16 && key_char[key_chars-1] ); \
+} while(0)
+
 #define key_held(keycode) (!!(tigrKeyHeld(app, keycode)))
 #define key_down(keycode) (!!tigrKeyDown(app, keycode))
 #define key_trigger(keycode) (!!tigrKeyDown(app, keycode)) // @todo: deprecate me, use key_down() instead

@@ -146,11 +146,11 @@ const char* app_savefile() {
     return osdialog_file(OSDIALOG_SAVE, cwd, NULL, NULL);
 #endif
 }
-const char* app_selectfolder(const char *title) {
+const char* app_selectfolder(const char *title, const char *origin) {
     char cwd[DIR_MAX] = {0}; getcwd(cwd, DIR_MAX);
 #ifdef TFD_IMPLEMENTATION
-    return tinyfd_selectFolderDialog(title, cwd);
+    return tinyfd_selectFolderDialog(title, origin && origin[0] ? origin : cwd);
 #else
-    return osdialog_file(OSDIALOG_OPEN_DIR, cwd, NULL, NULL);
+    return osdialog_file(OSDIALOG_OPEN_DIR, origin && origin[0] ? origin : cwd, NULL, NULL);
 #endif
 }

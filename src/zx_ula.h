@@ -422,15 +422,27 @@ void blur(window *win) {
     static int j = 0;
     static byte jj = 0;
 
+    // RF noise interferences
+#if 1
+    enum { _33 = 31 };
+#else
+    static int _33 = 31;
+    int diff = key_down(TK_RIGHT) - key_down(TK_LEFT);
+    if( diff ) printf("%d\n", _33 = tigrClamp(_33+diff, 1, 180));
+#endif
+
     for( int y = _24; y < _192-_24; ++y ) {
         rgba *texture = &((rgba*)win->pix)[_32 + y * width];
 
-        for(int x=0;x<_32;x++) {
+        for(int x=0;x<((_256-_32*2)/8);x++) {
 
         int shift = (++jj)&1;
         texture += shift;
 
                 // RF: hue shift
+                // @fixme: apply this effect to the upper and bottom border as well
+                //         restricted to paper area only for perf reasons. note that very few games 
+                //         would write noticeable graphics in border area (eg, Sentinel48, DefendersOfTheEarth.dsk))
                 for(int i = 8-1; i >= 0; --i) {
                     unsigned pix0 = texture[i-0];
                     unsigned pix1 = texture[i-1];
@@ -457,7 +469,7 @@ if(ZX_RF) {
 }
                 }
 
-                // RF: jailbars
+                // RF: jailbars (paper area only)
                 if(x%2)
                 for(int i = 0; i < 8; ++i) {
                     unsigned pix0 = texture[i-0];
@@ -466,14 +478,14 @@ if(ZX_RF) {
                     texture[i] = as_rgb(h0,s0,v0*0.99);
                 }
 
-                // RF: interferences
-                // interesting tv effects (j): 13, 19, 23, 27, 29, 33
-                // note: since CRT shader was introduced this RF effect became less
-                // aparent (because of the bilinear smoothing). and that's why we're
-                // using 13 now, since the screen stripes it creates are way more visible.
-                // used to be 33 all the time before.
+                // RF: noise interferences
+                // interesting tv effects (j): 13, 19, 23, 27, 29, 33, etc.
+                // note: original RF effect (j==33) created a pattern that was way more
+                // visible in 320x240 resolution with no CRT (bilinear smoothing) at all.
+                // used to be 33 all the time, then 13 (since CRT), now 31 (since 384x304).
                 // @fixme: apply this effect to the upper and bottom border as well
-                for(int i = 0; i < 8; ++i) { ++j; j%=13; // was 33 before
+                //         restricted to paper area only for perf reasons.
+                for(int i = 0; i < 8; ++i) { ++j; j%=_33;
                     unsigned pix0 = texture[i-0];
                     byte r0,g0,b0; rgb_split(pix0,r0,g0,b0);
                     byte h0,s0,v0; rgb2hsv(r0,g0,b0,&h0,&s0,&v0);
@@ -699,7 +711,7 @@ const char *shader =
     "/* based on code by lalaoopybee https://www.shadertoy.com/view/DlfSz8 */\n"
     "#define CURVATURE 8.2\n"
     "#define BLUR .01\n"
-    "#define CA_AMT 1.0024\n"
+    "#define CA_AMT (1.0024) /*aberration near the corners. 1.01 is a lot.*/\n"
     "void fxShader(out vec4 fragColor, in vec2 uv){\n"
     "    vec2 fragCoord=uv*vec2(352.0*3.0,288.0*3.0);\n"
 
@@ -729,15 +741,35 @@ const char *shader =
     "    vec2 edge = vec2(1.,1.);\n"
 #endif
 
+    // apply aberration toward the screen corners. additionally:
+    // - by using x3 texture() we get blurrier results (see: center of the screen).
+    // - by using x3 texture_AA2() we get crispier results (see: center of the screen).
 #if 1
-    "    /* chromatic aberration */\n"
+    "    /* chromatic aberration (mid crisp) */\n"
+    "    vec3 color = vec3(\n"
+    "        texture_AA2(image, (crtUV-.5)*CA_AMT+.5).r,\n"
+    "        texture_AA2(image, crtUV).g,\n"
+    "        texture/*_AA2*/(image, (crtUV-.5)/CA_AMT+.5).b\n"
+    "    );\n"
+#elif 0
+    "    /* chromatic aberration (crispier) */\n"
+    "    vec3 color = vec3(\n"
+    "        texture_AA2(image, (crtUV-.5)*CA_AMT+.5).r,\n"
+    "        texture_AA2(image, crtUV).g,\n"
+    "        texture_AA2(image, (crtUV-.5)/CA_AMT+.5).b\n"
+    "    );\n"
+#elif 0
+    "    /* chromatic aberration (blurry) */\n"
     "    vec3 color = vec3(\n"
     "        texture(image, (crtUV-.5)*CA_AMT+.5).r,\n"
     "        texture(image, crtUV).g,\n"
     "        texture(image, (crtUV-.5)/CA_AMT+.5).b\n"
     "    );\n"
-#else
+#elif 0 // relatively crisp
     "    vec4 color4 = texture_AA2(image, crtUV);\n"
+    "    vec3 color = color4.rgb;\n"
+#else // crisp
+    "    vec4 color4 = texture(image, crtUV);\n"
     "    vec3 color = color4.rgb;\n"
 #endif
 
@@ -761,12 +793,6 @@ const char *shader =
     "}\n" // ultrawide ula
     "}\n";
 
-int load_shader(const char *filename) {
-    char *data = readfile(filename, NULL);
-    if(data) if(strstr(data, " fxShader")) return shader = strdup(data), 1; // @leak
-    return 0;
-}
-
 void crt(int enable) {
     extern window *app;
     if( enable )
@@ -774,3 +800,12 @@ void crt(int enable) {
     else
     tigrSetPostShader(app, tigr_default_fx_gl_fs, strlen(tigr_default_fx_gl_fs));
 }
+
+int load_shader(const char *filename) {
+    char *data = readfile(filename, NULL);
+    if(data)
+        if(strstr(data, " fxShader("))
+            return shader = strdup(data), crt(1), 1; // @leak
+    return 0;
+}
+

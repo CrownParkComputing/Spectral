@@ -1,5 +1,8 @@
 // drag 'n drop support for tigr (win,lin,osx)
 // - rlyeh, public domain
+//
+// @fixme:
+// move statics to tigrInternal structs
 
 // header:
 // returns NULL-terminated list of utf8 string items dropped in this frame.
@@ -109,10 +112,11 @@ BOOL performDragOperation(id self, SEL sel, id sender) {
 }
 static
 void tigrDragAcceptFiles(Tigr *app, int on) {
-    static NSWindow *obj1 = 0;
-    if(!obj1) {
-        obj1 = (NSWindow*)tigrInternal(app)->window;
-        [obj1 registerForDraggedTypes:@[NSPasteboardTypeURL, NSPasteboardTypeFileURL, NSPasteboardTypeString]];
+    static NSWindow *last = 0;
+           NSWindow *win = (NSWindow*)tigrInternal(app)->window;
+    if( last != win ) {
+        last = win;
+        [win registerForDraggedTypes:@[NSPasteboardTypeURL, NSPasteboardTypeFileURL, NSPasteboardTypeString]];
     }
 }
 
@@ -197,11 +201,15 @@ static Atom XDND_DATA;
 static Atom INCR;
 
 void tigrDragAcceptFiles(Tigr *app, int on) {
+    static Display *last = 0;
+
     Window m_window = tigrInternal(app)->win;
     Display *m_display = tigrInternal(app)->dpy;
 
     // init atoms
-    if( !XdndAware ) {
+    if( last != m_display ) {
+        last = m_display;
+
         XdndAware      = XInternAtom(m_display, "XdndAware", False);
         XdndEnter      = XInternAtom(m_display, "XdndEnter", False);
         XdndPosition   = XInternAtom(m_display, "XdndPosition", False);

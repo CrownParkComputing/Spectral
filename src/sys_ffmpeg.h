@@ -29,7 +29,7 @@ void record_stop(void) {
     rec_mpeg1 = 0;
 }
 
-bool record_active() {
+bool record_enabled() {
     return rec_ffmpeg || rec_mpeg1;
 }
 
@@ -77,7 +77,7 @@ int record_start(const char *outfile_mp4, int w, int h, int fps) {
 }
 
 void record_frame(void *pixels, int width, int height) {
-    if( record_active() ) {
+    if( record_enabled() ) {
         if( rec_ffmpeg ) {
             fwrite(pixels, 4 * width * height, 1, rec_ffmpeg);
         }

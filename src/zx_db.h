@@ -336,7 +336,7 @@ static char *zxdb_filename2title(const char *filename) {
     // there x2 room for worst case: aBcDeF>a*B*c*D*e*F, and also extra room for further string patches
     char *spaced = memset(va("%*.s", strlen(s)*2+5, ""), 0, strlen(s)*2+5);
     for( int i = 0, j = 0; s[i]; ++i ) {
-        if( i > 1 ) {
+        if( i >= 1 ) {
             int upper = islower(s[i-1]) && isupper(s[i]);
             int digit = isalpha(s[i-1]) && isdigit(s[i]);
             if( upper || digit ) spaced[j++] = '*';
@@ -345,9 +345,25 @@ static char *zxdb_filename2title(const char *filename) {
     }
     s = spaced;
 
-    // trim lead/final spaces and double spaces
-    replace(s, " - ", "   ");
+#if 0
+    // ignore title-subtitle separators
     replace(s, "_-_", "   ");
+    replace(s, " - ", "   ");
+#else
+    // trim title[:-,]subtitle separators
+    // we discard the subtitle and focus on the main title instead
+    // see: Saboteur2-AvengingAngel does not have its subtitle preserved in ZXDB
+    // : 19 Part 1: Boot Camp
+    // - 1994 - Ten Years After|4x4 Off-Road Racing
+    // , Dizzy, Prince of the YolkFolk
+    replace(s, "_-_", "\1");
+    replace(s, " - ", "\1");
+    replace(s, ",", "\1");
+    replace(s, ":", "\1");
+    for( int i = 0; s[i]; ++i ) if(s[i] == 1) s[i] = 0;
+#endif
+
+    // trim lead/final spaces and double spaces
     while( s[0] == ' ' ) ++s;
     while( s[strlen(s)-1] == ' ' ) s[strlen(s)-1] = '\0';
     while( strstr(s, "  ") ) replace(s, "  ", " ");
@@ -399,8 +415,30 @@ static char *zxdb_filename2title(const char *filename) {
         }
     }
 
-    // convert non-alpha into spaces (@fixme: utf8 games; russian? spanish? czech?)
-    for( int i = 0; s[i]; ++i ) s[i] = isalnum(s[i]) ? s[i] : '*';
+    // preserve common non-alpha chars:
+    // ! Aaargh!
+    // ' Ghouls 'n' Ghosts
+    // . N.E.X.O.R.
+    // * Q*Bert
+    // & Olli & Lissa 3
+    //
+    // convert rest of non-alpha into spaces (@fixme: utf8 games; russian? spanish? czech?)
+    //
+    // $ Mega-Buck$
+    // £ Wh££ler Dealer
+    // ¡ ¡Asalto!
+    // " Santa's Workshop - Chapter II "Harry Strikes Back"
+    // # Manic Miner #2
+    // ? Whodunnit?
+    // + Exploding Fist +
+    // > Depeche Mode: The Singles 81->85
+    // _ Ala-Bala_Mutari
+    // \ BATS'92\\1
+    // / 50/50|Air/Sea Missile
+    // [] Bingo [4]|Number 6 in the Village [QUILL]|Number 6 in the Village [PAW]
+    // () Psycho (Eliza)|Welcome to Hell (ZxZvm)
+    //
+    for( int i = 0; s[i]; ++i ) s[i] = isalnum(s[i]) || strchr("!'.*&",s[i]) ? s[i] : '*';
 
     // final touch, remove 48 and 128 from filenames: renegade128.tzx, rasputin48.sna, etc
     if( strstr(s, "*48K") ) strstr(s, "*48K")[1] = '\0'; // memcpy(strstr(s, "*48K"), "****",  4);
