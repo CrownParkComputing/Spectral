@@ -216,12 +216,14 @@ int tzx_load(const byte *fp, int len) {
                 if( (NB != 1 && NB != 8) )
                 warning = "Report this tape: TZX block $19 not fully supported.";
 
-            break; case 0x20: // OK(0) // TheMunsters, Untouchables(HitSquad)
+            break; case 0x20: // OK(0) // TheMunsters, Untouchables(HitSquad), Diver(2004)
                 blockname = "pauseOrStop";
                 pause  = (*src++); pause  |= (*src++)*0x100; 
                 debug = va("%ums", pause);
-                if(!pause) tape_render_stop();
-                else tape_render_pause(pause);
+                if(pause) tape_render_pause(pause);
+                else
+                    tape_render_stop(),
+                    tape_render_pause(HYPER_LARGE_PAUSE); // tape_render_pause(1000); // experimental
 
             break; case 0x21: // IGNORED (see: BleepLoad)
                 blockname = "groupStart";
@@ -509,6 +511,8 @@ int csw_load(const byte *fp, int len) {
 #endif
 
     tape_reset();
+    tape_has_turbo = 1; // @fixme
+
     int level = !!flags;
 
     while( fp < eot ) {
@@ -525,6 +529,7 @@ int csw_load(const byte *fp, int len) {
     }
 
     tape_finish();
+
     return 1;
 }
 
@@ -533,6 +538,7 @@ int pzx_load(const byte *fp, int len) {
     if( memcmp(fp, "PZXT", 4) ) return 0;
 
     tape_reset();
+    tape_has_turbo = 1; // @fixme
 
     do {
         unsigned tag = 0[(unsigned *)fp];
@@ -562,6 +568,7 @@ int pzx_load(const byte *fp, int len) {
                     duration |= *(uint16_t*)ptr; ptr += 2; num -= 2;
                 }
 
+                tape_has_turbo |= (duration == 2168 || duration == 667 || duration == 735 ? 0 : 1);
                 tape_render_pilot(count, duration);
             }
         }
@@ -576,11 +583,15 @@ int pzx_load(const byte *fp, int len) {
             const word *s1 = (word*)ptr; ptr += p1 * 2;
             const byte *data = ptr;
 
+            tape_has_turbo |= (p0 == 2 && p1 == 2 ? 0 : 1);
+
             for( ; bits > 0; ++data )
             for( int i = 0; i < 8 && bits; ++i, --bits ) {
                 int bit = !!((*data) & (1<<(7-i)));
                 byte count = bit ? p1 : p0;
                 const word *pulses = bit ? s1 : s0;
+
+                tape_has_turbo |= (*pulses == 1710 && *pulses == 855 ? 0 : 1);
 
                 for( byte j = 0; j < count; ++j) {
                     tape_push("piLot", level ^ 1 ? LEVEL_HIGH : LEVEL_LOW, 1, pulses[j]); level ^= 1;

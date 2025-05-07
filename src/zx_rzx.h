@@ -7,7 +7,7 @@ uint64_t rzx_counter;
 int rzx_last_port;
 int rzx_frame;
 
-int loadfile(const char *file, int preloader, int model);
+int mount(const char *file, byte *ptr, int len, int use_preloader);
 
 rzx_u32 RZX_callback(int msg, void *blob) {
     RZX_IRBINFO *irb = (RZX_IRBINFO*)blob;
@@ -22,7 +22,11 @@ rzx_u32 RZX_callback(int msg, void *blob) {
             (int)snap->length,
             snap->options & RZX_EXTERNAL ? "#external" : "#embedded",
             snap->options & RZX_COMPRESSED ? "#compressed" : "#uncompressed");
-        loadfile(snap->filename, 0, 0);
+
+        int len;
+        char *data = readfile(snap->filename, &len);
+        mount(snap->filename, data, len, 0);
+        free(data);
     }
     else if( msg == RZXMSG_IRBNOTIFY ) {
         rzx_counter = cpu.fetches;

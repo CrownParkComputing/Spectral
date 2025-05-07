@@ -13,12 +13,12 @@ bool  zxdb_init(const char *zxdbfile);
 bool  zxdb_initmem(const char *blob, const int len);
 bool  zxdb_loaded();
 int   zxdb_count();
-zxdb   zxdb_search(const char *entry); // either "#id", "*text*search*", or "/file.ext"
+zxdb   zxdb_search(const char *entry, int allow_multiple); // either "#id", "*text*search*", or "/file.ext"
 zxdb    zxdb_print(const zxdb);
 char*   zxdb_url(const zxdb, const char *hint);
 char*   zxdb_download(const zxdb, const char *url, int *len); // must free() after use
+int     zxdb_model(const zxdb);
 zxdb    zxdb_free(zxdb);
-
 
 zxdb    zxdb_new(const char *lines);
 zxdb    zxdb_dup(const zxdb);
@@ -61,7 +61,7 @@ bool zxdb_initmem(const char *blob, const int len) {
     }
     if( !memcmp(blob + 0000, "Rar!",4) ) {
         if( !memcmp(blob + 0x38, "Spectral.db",11) ) {
-            unc = unrar(blob, len, &unclen);
+            unc = unrar_mem(blob, len, &unclen);
         }
     }
 
@@ -261,7 +261,7 @@ zxdb zxdb_dup(const zxdb zxdb) {
 }
 
 static
-zxdb zxdb_search_by_name(const char *name) {
+zxdb zxdb_search_by_name(const char *name, int allow_multiple) {
     zxdb z = {0};
 
     if( *name == '\0' ) return z;
@@ -275,12 +275,15 @@ zxdb zxdb_search_by_name(const char *name) {
     if( matches ) {
         qsort(multi, matches, sizeof(VAL*), zxdb_compare);
 #if DEV
-        if( matches > 1 ) ; // alert(va("%d matches for `%s`", matches, name));
+        if( matches > 1 ) ; //alert(va("%d matches for `%s`", matches, name));
         if( matches > 1 )
         for( int i = 0; i < matches; ++i ) {
             puts(*multi[i]);
         }
 #endif
+        if( matches == 2 && !strcmp(*multi[0], *multi[1]) ) matches = 1; // dismiss main title vs alias counting as different titles. eg, star control vs starcontrol
+
+        if( allow_multiple ? 1 : matches == 1 )
         found = multi[0];
     }
 
@@ -305,7 +308,7 @@ zxdb zxdb_free(zxdb z) {
     return zero;
 }
 
-static char *zxdb_filename2title(const char *filename) {
+static char *zxdb_filename2title(const char *filename, int full_form) {
 
     // early exit on foreign filenames (@fixme: utf8 games; russian? spanish? czech?)
     for(int i = 0; filename[i]; ++i ) {
@@ -329,7 +332,8 @@ static char *zxdb_filename2title(const char *filename) {
         else ext = 0;
     } while(ext);
 
-    // extract (year)(publisher)(side 1)[48-128K]
+    // trim (year)(publisher)(side 1)[48-128K]
+    if( strstr(s," (") ) *strstr(s," (") = '\0';
     if( strchr(s, '(') ) *strchr(s, '(') = '\0';
 
     // convert case edges into spaces (@fixme: utf8 games; russian? spanish? czech?)
@@ -345,31 +349,13 @@ static char *zxdb_filename2title(const char *filename) {
     }
     s = spaced;
 
-#if 0
-    // ignore title-subtitle separators
-    replace(s, "_-_", "   ");
-    replace(s, " - ", "   ");
-#else
-    // trim title[:-,]subtitle separators
-    // we discard the subtitle and focus on the main title instead
-    // see: Saboteur2-AvengingAngel does not have its subtitle preserved in ZXDB
-    // : 19 Part 1: Boot Camp
-    // - 1994 - Ten Years After|4x4 Off-Road Racing
-    // , Dizzy, Prince of the YolkFolk
-    replace(s, "_-_", "\1");
-    replace(s, " - ", "\1");
-    replace(s, ",", "\1");
-    replace(s, ":", "\1");
-    for( int i = 0; s[i]; ++i ) if(s[i] == 1) s[i] = 0;
-#endif
+    // convert to uppercase (@fixme: utf8 games; russian? spanish? czech?)
+    for( int i = 0; s[i]; ++i ) s[i] = toupper(s[i]);
 
     // trim lead/final spaces and double spaces
     while( s[0] == ' ' ) ++s;
     while( s[strlen(s)-1] == ' ' ) s[strlen(s)-1] = '\0';
     while( strstr(s, "  ") ) replace(s, "  ", " ");
-
-    // convert to uppercase (@fixme: utf8 games; russian? spanish? czech?)
-    for( int i = 0; s[i]; ++i ) s[i] = toupper(s[i]);
 
     // reorder prefixes written as suffixes
     /**/ if( strendi(s, ", THE") ) memmove(s+4,s,strlen(s+4)), memcpy(s, "THE ", 4), s[strlen(s)-1] = '\0';
@@ -380,6 +366,26 @@ static char *zxdb_filename2title(const char *filename) {
     else if( strendi(s, ", IL")  ) memmove(s+3,s,strlen(s+3)), memcpy(s, "IL ", 3), s[strlen(s)-1] = '\0';
     else if( strendi(s, ", A")   ) memmove(s+2,s,strlen(s+2)), memcpy(s, "A ", 2), s[strlen(s)-1] = '\0';
     else if( strendi(s, ", O")   ) memmove(s+2,s,strlen(s+2)), memcpy(s, "O ", 2), s[strlen(s)-1] = '\0';
+
+#if 0
+    // ignore title-subtitle separators
+    replace(s, "_-_", "   ");
+    replace(s, " - ", "   ");
+#else
+    // trim full title[:-,]subtitle separators
+    // : 19 Part 1: Boot Camp|Fist II: The Legend Continues
+    // - 1994 - Ten Years After|Plane Lazy - a steamboat spin-off
+    // , Dizzy, Prince of the YolkFolk
+    if( !full_form ) {
+        replace(s, "_-_", "\1");
+        replace(s, " - ", "\1");
+        for( char *dash = strchr(s+1, '-'); dash; dash = 0) if( isdigit(dash[-1]) ) *dash = '\1'; // split Saboteur2-AvengingAngel but dont split Bat-Man
+        replace(s, ",", "\1");
+        replace(s, ":", "\1");
+        for( int i = 0; s[i]; ++i ) if(s[i] == 1) s[i] = 0;
+    }
+        replace(s, "-", "*");
+#endif
 
     // remove: gonzzalezz - side 1, Toi Acid Game - Side 2
     // remove: Outrun - Tape 2 - Side 1, 5_Exitos_De_Opera_Soft_Tape_1_-_Side_1,
@@ -449,32 +455,44 @@ static char *zxdb_filename2title(const char *filename) {
     return s;
 }
 
-zxdb zxdb_search(const char *id) { // game.tap or #13372
-    // search by id
-    if( id[0] == '#' ) return zxdb_search_by_name(id);
+zxdb zxdb_search(const char *id, int allow_multiple) { // game.tap or #13372
+    // @todo: extract hints from filename (like publisher or year) to disambiguate multiple search hits.
+    // See: Jaws(1984).tap vs Jaws(AlternativeSoftwareLtd).tzx
 
-    // search by filename
-    char *s = zxdb_filename2title(id);
-    zxdb z = zxdb_search_by_name( s );
+    // search by id. exclude #id[#seq...]
+    if( id[0] == '#' ) return zxdb_search_by_name(va("#%d",atoi(id+1)), allow_multiple);
 
-    // if it fails, try again replacing trailing 2>"% II", 3>"% III", 4>"% IV", 5>"% V" and viceversa.
-    // lines ago, we did pre-allocate room space for this patch.
-    if( !z.ids[0] && strendi(s,   "*2") ) strcpy((char*)strendi(s,  "*2"), "* II"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*2") ) memcpy((char*)strstri(s,  "*2"), "* II*", 5), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,   "*3") ) strcpy((char*)strendi(s,  "*3"),"* III"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*3") ) memcpy((char*)strstri(s,  "*3"),"* III*", 6), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,   "*4") ) strcpy((char*)strendi(s,  "*4"), "* IV"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*4") ) memcpy((char*)strstri(s,  "*4"), "* IV*", 5), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,   "*5") ) strcpy((char*)strendi(s,  "*5"),  "* V"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*5") ) memcpy((char*)strstri(s,  "*5"),  "* V*", 4), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s, "*III") ) strcpy((char*)strendi(s,"*III"),  "* 3"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s, "*III") ) memcpy((char*)strstri(s,"*III"),  "* 3*", 4), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,  "*II") ) strcpy((char*)strendi(s, "*II"),  "* 2"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,  "*II") ) memcpy((char*)strstri(s, "*II"),  "* 2*", 4), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,  "*IV") ) strcpy((char*)strendi(s, "*IV"),  "* 4"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,  "*IV") ) memcpy((char*)strstri(s, "*IV"),  "* 4*", 4), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strendi(s,   "*V") ) strcpy((char*)strendi(s,  "*V"),  "* 5"),     z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*V") ) memcpy((char*)strstri(s,  "*V"),  "* 5*", 4), z = zxdb_search_by_name(s);
+    zxdb z = {0};
+
+    // try full `title:subtitle` form first, else try a short `title` form if available
+    // see: FistII:TheLegendContinues does not have a short form in ZXDB (Fist II)
+    // see: Saboteur2 does not have a long form in ZXDB (Saboteur 2: Avenging Angel)
+
+    for( int full = 2; !z.ids[0] && --full >= 0; ) {
+        // search by filename
+        char *s = zxdb_filename2title(id, full);
+        z = zxdb_search_by_name(s, allow_multiple);
+
+        // if it fails, try again replacing trailing 2>"% II", 3>"% III", 4>"% IV", 5>"% V" and viceversa.
+        // lines ago, we did pre-allocate room space for this patch.
+        if( !z.ids[0] && strendi(s,   "*2") ) strcpy((char*)strendi(s,  "*2"), "* II"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,   "*2") ) memcpy((char*)strstri(s,  "*2"), "* II*", 5), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,   "*3") ) strcpy((char*)strendi(s,  "*3"),"* III"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,   "*3") ) memcpy((char*)strstri(s,  "*3"),"* III*", 6), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,   "*4") ) strcpy((char*)strendi(s,  "*4"), "* IV"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,   "*4") ) memcpy((char*)strstri(s,  "*4"), "* IV*", 5), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,   "*5") ) strcpy((char*)strendi(s,  "*5"),  "* V"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,   "*5") ) memcpy((char*)strstri(s,  "*5"),  "* V*", 4), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s, "*III") ) strcpy((char*)strendi(s,"*III"),  "* 3"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s, "*III") ) memcpy((char*)strstri(s,"*III"),  "* 3*", 4), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,  "*II") ) strcpy((char*)strendi(s, "*II"),  "* 2"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,  "*II") ) memcpy((char*)strstri(s, "*II"),  "* 2*", 4), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,  "*IV") ) strcpy((char*)strendi(s, "*IV"),  "* 4"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,  "*IV") ) memcpy((char*)strstri(s, "*IV"),  "* 4*", 4), z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strendi(s,   "*V") ) strcpy((char*)strendi(s,  "*V"),  "* 5"),     z = zxdb_search_by_name(s, allow_multiple);
+        if( !z.ids[0] && strstri(s,   "*V") ) memcpy((char*)strstri(s,  "*V"),  "* 5*", 4), z = zxdb_search_by_name(s, allow_multiple);
+    }
+
     return z;
 }
 
@@ -632,4 +650,21 @@ char* zxdb_download(const zxdb z, const char *url, int *len) {
         }
     }
     return cache;
+}
+
+int zxdb_model(const zxdb z) {
+    if( z.ids[0] ) {
+        char *model = strchr(z.ids[5], ',')+1;
+        /**/ if( strstr(model, "Pentagon") ) return 129;
+        else if( strstr(model, "+3") )       return 300;
+        else if( strstr(model, "+2A") )      return 210;
+        else if( strstr(model, "+2B") )      return 210;
+        else if( strstr(model, "+2") )       return 200;
+        else if( strstr(model, "USR0") )     return 128; // @fixme: catch this case
+        else if( strstr(model, "48K/128K") ) return 128; // educated guess. cannot infer
+        else if( strstr(model, "128") )      return 128;
+        else if( strstr(model, "48") )       return 48;
+        else if( strstr(model, "16") )       return 16;
+    }
+    return 0;
 }

@@ -1,0 +1,7 @@
+// zx fantasy palette
+// r-lyeh, public domain/CC0
+
+// darker colors are mostly preserved originals (1-6-2-5) with small subtle variations in the non-loading ones (3-4)
+// brigther colors diverge from there and complement to a wider spectrum (pun intended), including orange, purple and lime.
+// black is slightly blue-ish in both 0-8 groups
+

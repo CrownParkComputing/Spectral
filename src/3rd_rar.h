@@ -11743,7 +11743,7 @@ unsigned rar_codec(rar *r, unsigned i) { // @todo
 	return 0;
 }
 
-char *unrar(const void *inbin, unsigned inlen, unsigned *outlen) { // must rar_free()
+char *unrar_mem(const void *inbin, unsigned inlen, unsigned *outlen) { // must rar_free()
     if( inbin && inlen > 4 && !memcmp(inbin, "Rar!", 4) ) {
     	rar *r = rar_openmem(inbin, inlen);
     	if( r ) {

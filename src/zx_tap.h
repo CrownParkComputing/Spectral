@@ -1,4 +1,5 @@
 #define ALT_TIMINGS 0 // 1 for the wip timings
+#define PAUSE_EATER 1
 
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000, COUNT_PER_MS = 3547 }; // 3500 };
 enum { LEVEL_FLIP, LEVEL_KEEP, LEVEL_LOW, LEVEL_HIGH }; // polarity
@@ -121,10 +122,12 @@ void tape_reset(void) {
 }
 
 void tape_finish() {
+#if 1 // !PAUSE_EATER
     // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
     for( int i = voc_len; --i >= 0; )
         if( !strchr("uo", voc[i].debug) ) break; // pa(u)se st(o)p
             else voc[i].units = 1, voc[i].debug = 'o';
+#endif
 
     // write a terminator
     tape_render_stop();
@@ -207,6 +210,12 @@ byte mic_read(uint64_t tstates) {
 
     if( mic_on ) { // if tape not stopped
 #if !ALT_TIMINGS
+        #if PAUSE_EATER 
+        // if there's a pause eater, we can run at the slowest pace during pa(u)se and st(o)p blocks (this will ease loading in tapes where pauses are wrong, ie too short. see: Coliseum.tap, JmenoRuze.tap, MoonAndThePirates.tap, etc). 
+        // all the time spent here will be fast-forwarded by the pause eater in any case, no worries.
+        if( strchr("uo", q.debug) ) diff = 1;
+        #endif
+
         if( diff > 69888 && strchr("uo", q.debug) ) diff = 4;
 #else
         if( diff > 69888 ) diff = 4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
@@ -387,12 +396,12 @@ void tape_rewind() {
 // - http://newton.sunderland.ac.uk/~specfreak/Schemes/schemes.html
 // - https://faqwiki.zxnet.co.uk/wiki/Loading_routine_%22cores%22
 //
-// [-/+] Failures | Loader Name | Games | Total (-) 9 tape errors, (+) 9 tape errors
+// [-/+] Failures | Loader Name | Games | Total (-) 9 tape errors, (+) 9 tape errors, (!/^C) fails with turborom, (?) could not test anymore
 // [ / ] _unknown_                Myla Di'Kaich
-// [ / ] _unknown_                Twister
-// [ / ] _unknown_                Zanthrax
-// [ / ] Biturbo                  Special Program, Playgames
-// [ / ] NN:Hollywood Poker       Hollywood Poker
+// [ / ] _unknown_!                Twister
+// [ / ] _unknown_!                Zanthrax
+// [ / ] Biturbo?                  Special Program, Playgames
+// [ / ] NN:Hollywood Poker?       Hollywood Poker
 // [ / ] Odeload/UnilODE          Trivial Pursuit (HitSquad), (Erbe), ... Genus Edition Question Tape Side A, Trivial Pursuit Baby Boomer Edition Question Tape side B, Trivial Pursuit Young Players Edition Question Tape
 // [0/0] _unknown_                Falcon Patrol 2
 // [0/0] Activision               Time Scanner ^C, Pac-Land, Dynamite Dux, Ninja Spirit
@@ -400,64 +409,64 @@ void tape_rewind() {
 // [0/0] Alkatraz 2               Outrun Europa, Gauntlet 3, Strider 2 (US Gold) ^C
 // [0/0] BleepLoad                Black Lamp, Bubble Bobble, I,Ball; Brainstorm (Firebird), Earthlight, Flying Shark, Jaws, Kinetik, The Plot, Rick Dangerous, Soldier of Fortune, Thrust II 48, Ninja Scooter, Zolyx
 // [0/0] Busy soft                Jet-Story, Double Dash, Kliatba noci, Quadrax
-// [0/0] Cyberlode 1.1            Cauldron (Silverbird), Antiriad 48 (Silverbird)
+// [0/0] Cyberlode 1.1!            Cauldron (Silverbird), Antiriad 48 (Silverbird)
 // [0/0] Digital Integration      ATF 48, TT Racer 48 (4 Aces), Tomahawk (4 Aces)
 // [0/0] Dinaload                 Capitan Trueno, Grand Prix Master, Satan, Cosmic Sheriff, Freddy Hardest En Manhattan Sur, Michel Futbol Master
-// [0/0] EDOS                     Beyond Ice Palace (EDOS), Bomb Jack 2 (EDOS), Street Cred Football (EDOS)
+// [0/0] EDOS!                     Beyond Ice Palace (EDOS), Bomb Jack 2 (EDOS), Street Cred Football (EDOS)
 // [0/0] Elite                    Kokotoni Wilf 48, Dukes of Hazzard 48,
 // [0/0] Excelerator              Loads of Midnight, Last Mohican, Jack the Ripper
 // [0/0] Flash Load               Dan Dare, Great Fire of London, Cliff Hanger 48, Strangeloop,
 // [0/0] FTL                      Thundercats, Supertrux
 // [0/0] Gargoyle                 Heavy on the Magick, Lightforce (Rack-It)
-// [0/0] Gremlin                  Metabolis, Monty on the Run, DeathWish3, Grumpy Gumphrey Super Sleuth, Way of the Tiger, Bounder, Jack the Nipper, Avenger, Future Knight
+// [0/0] Gremlin!                  Metabolis, Monty on the Run, DeathWish3, Grumpy Gumphrey Super Sleuth, Way of the Tiger, Bounder, Jack the Nipper, Avenger, Future Knight
 // [0/0] Gremlin 2                Basil the Mouse Detective (10 Great Games 2), Mask, Mask (10 Great Games 2)
 // [0/0] Haxpoc-Lock              Star Wars (Domark)
 // [0/0] Hyper-Loading            LaserWARp, Air Traffic Control
-// [0/0] Injectaload              Book of the Dead (CRL), Ninja Hamster, Outcast, (3D Game Maker?)
+// [0/0] Injectaload!              Book of the Dead (CRL), Ninja Hamster, Outcast, (3D Game Maker?)
 // [0/0] Jet-Load                 Classroom Chaos, Dungeon Dare, Prelude, The Greatest Show on Earth
-// [0/0] Jon North                YS Poke Tapes
+// [0/0] Jon North?                YS Poke Tapes
 // [0/0] LazerLoad 48             Macadam Bumper (PSS) 48 ^C
-// [0/0] Lerm                     Lerm Microdrive 1 - Side A, Lerm Microdrive 1 - Side B, Lerm Tape Copier 6, Lerm Tape Copier 7 48
+// [0/0] Lerm?                     Lerm Microdrive 1 - Side A, Lerm Microdrive 1 - Side B, Lerm Tape Copier 6, Lerm Tape Copier 7 48
 // [0/0] LoadA-Game               Joe Blade 2
-// [0/0] Micromega                Braxx Bluff, Kentilla 48, Jasper, A Day in the Life, Glass(BugByte),
-// [0/0] Microprose               Times of Lore, Xenophobe
+// [0/0] Micromega!                Braxx Bluff, Kentilla 48, Jasper, A Day in the Life, Glass(BugByte),
+// [0/0] Microprose!               Times of Lore, Xenophobe
 // [0/0] Microsphere              Skool Daze, Sky Ranger, Back to Skool
 // [0/0] Mikro-Gen                Automania, Pyjamarama, Witch's Cauldron, Everyone's a Wally, Herbert's Dummy Run, Shadow of the Unicorn, Three Weeks in Paradise (both), Battle of the Planets, Equinox, Stainless Steel, Frost Byte, Cop-Out
 // [0/0] Movieload                Moonstrike 48
 // [0/0] NN:Moonlighter           Moonlighter
 // [0/0] NN:Roller Coaster        Roller Coaster
-// [0/0] NN:Worldcup              World Cup Football 48
+// [0/0] NN:Worldcup!              World Cup Football 48
 // [0/0] Novaload 48              Swords & Sorcery 48, Covenant
-// [0/0] Nu-Load Ninety One       The Hunt for Red October
+// [0/0] Nu-Load Ninety One       The Hunt for Red October(Grandslam)
 // [0/0] ODEload                  Trivial Pursuit Genus Edition Question Tape side B, Sailing, Sailing (Mastertronic), Sailing (Mastertronic Plus)
 // [0/0] Paul Owens System        Batman the Movie, Cabal, Operation Thunderbolt, The Untouchables, Chase HQ, Rainbow Islands, Red Heat (latest Ocean games)
 // [0/0] Players 1                Xanthius, Deviants, Fernandez Must Die, Fox Fights Back, Tomcat, Street Gang, Task Force, Street Cred' Football, Spooked, Cobra Force, Prohibition, Denizen, Elven Warrior, Saigon Combat Unit, Joe Blade 3, Prison Riot
-// [0/0] Players 2                Joe Blade, Andy Capp, Tetris, Thing!, Tanium, Shanghai Karate, Metal Army, Sword Slayer, PowerPlay
+// [0/0] Players 2!                Joe Blade, Andy Capp, Tetris, Thing!, Tanium, Shanghai Karate, Metal Army, Sword Slayer, PowerPlay
 // [0/0] Poliload (DinamicLoader) Astro Marine Corps, Rescate Atlantida (Rescue From Atlantis)
 // [0/0] PowerLoad 48             Arena, Boulderdash, Confuzion, Deathwake, Dynamite Dan, SpyVsSpy, Tantalus
-// [0/0] Proxima Software         Orion 48, Inferno 48,
+// [0/0] Proxima Software!         Orion 48, Inferno 48,
 // [0/0] Rapid                    Travel With Trashman, Zombie Zombie
 // [0/0] Really-quite-fast-loader Gary Lineker's Superskills
 // [0/0] Richlock                 Light Force 48, Light Force (Rack-It), Hydrofool (Rack-It), 
 // [0/0] SearchLoader             The Final Matrix, Ranarama ^C, City Slicker
-// [0/0] Sentient                 Tai-Pan, A Question of Scruples, Guerrilla War
-// [0/0] SetoLoad                 SL-multi-test.tzx
-// [0/0] Softlock                 Chimera 48k, Rasputin 48k, Skyfox, PHM Pegasus, Elite 48k (Firebird), Cylu 48k, Impossible Mission 2
-// [0/0] Software Projects        BC's Quest for Tires 48k, Learning with Leeper
-// [0/0] Speedlock 1              Alien 8, Batman, Beach Head, Blue Max 48, Cyclone 48, Decathlon 48, Gilligan's Gold 48, Match Day 48, Mikie 48, NOMAD 48, Rambo 48, Spy Hunter 48, Yie Ar Kung Fu 48
-// [0/0] Speedlock 1/2 Hybrid     Highlander
-// [0/0] Speedlock 2              Alien Highway, Enduro Racer, The Great Escape, Green Beret, Head Over Heels 128k, Tarzan, Yie Ar Kung Fu 2 48
-// [0/0] Speedlock 3              Leviathan [ENTER], Dogfight 2187, Triaxos
+// [0/0] Sentient!                 Tai-Pan, A Question of Scruples, Guerrilla War
+// [0/0] SetoLoad?                 SL-multi-test.tzx
+// [0/0] Softlock!                 Chimera 48k, Rasputin 48k, Skyfox, PHM Pegasus, Elite 48k (Firebird), Cylu 48k, Impossible Mission 2
+// [0/0] Software Projects!        BC's Quest for Tires 48k, Learning with Leeper
+// [0/0] Speedlock 1!              Alien 8, Batman, Beach Head, Blue Max 48, Cyclone 48, Decathlon 48, Gilligan's Gold 48, Match Day 48, Mikie 48, NOMAD 48, Rambo 48, Spy Hunter 48, Yie Ar Kung Fu 48
+// [0/0] Speedlock 1/2 Hybrid!     Highlander
+// [0/0] Speedlock 2!              Alien Highway, Enduro Racer, The Great Escape, Green Beret, Head Over Heels 128k, Tarzan, Yie Ar Kung Fu 2 48
+// [0/0] Speedlock 3!              Leviathan [ENTER], Dogfight 2187, Triaxos
 // [0/0] Speedlock 4              Athena 128, Road Runner, Mutants, The Ninja Warriors, Slap Fight, Tai-Pan, Wizball
-// [0/0] Speedlock 5              Road Blasters, Action Force 2, Outrun, Hysteria, Gryzor, Phantom Club, Slaine
+// [0/0] Speedlock 5!              Road Blasters, Action Force 2, Outrun, Hysteria, Gryzor, Phantom Club, Slaine
 // [0/0] Speedlock 6              The Fury, Platoon (Release1), Super Hang-On (Proein), MatchDay II (TheHitSquad), Vixen
 // [0/0] Speedlock 7              The Addams Family, Arkanoid 1/2, Batman The Caped Crusader, Target Renegade, WTSS, Vindicator, Robocop2, Typhoon, Simpsons, TimeMachine (most TheHitSquad releases)
-// [0/0] Speedlock 8 ?            Robocop 3
+// [0/0] Speedlock 8?              Robocop 3
 // [0/0] Speedlock Associates     Dan Dare 2
-// [0/0] Sprite Novaload          Theatre Europe
-// [0/0] The Edge                 Starbike, That's the Spirit, Psytraxx, Brian Bloodaxe
+// [0/0] Sprite Novaload!          Theatre Europe
+// [0/0] The Edge!                 Starbike, That's the Spirit, Psytraxx, Brian Bloodaxe
 // [0/0] Uniloader                Batty ^C, IkariWarriors ^C, Bomb Jack 2
-// [0/0] ZetaLoad                 Wec Le Mans (Imagine) [1]
+// [0/0] ZetaLoad!                 Wec Le Mans (Imagine) [1]
 // [0/0] Zydroload                The Light Corridor, North & South, Magic Johnson,
 // [0/0] Multiload                Blood Brothers, Deflektor, 
 // []                             Donkey Kong (Erbe), Bazooka Bill (Erbe/IBSA), Cobra (Erbe/IBSA), Conquestador (Erbe), 

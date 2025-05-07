@@ -2,30 +2,55 @@
 //#define AUDIO_LATENCY       100 // ms
 #define AUDIO_BUFFERLEN     _SAUDIO_DEFAULT_BUFFER_FRAMES // (AUDIO_FREQUENCY/(1000/AUDIO_LATENCY))
 
-#define audio_queue(sample,samples) do { /* mixed samples, then [3 separated AY channels + 1 beeper] */ \
-    audio_buffer1[audio_write  ] = samples[0]; \
-    audio_buffer2[audio_write  ] = samples[1]; \
-    audio_buffer3[audio_write  ] = samples[2]; \
-    audio_buffer4[audio_write  ] = samples[3]; \
-    audio_buffer5[audio_write  ] = samples[4]; \
-    audio_buffer6[audio_write  ] = samples[5]; \
-    audio_buffer7[audio_write  ] = samples[6]; \
-    audio_bufferA[audio_write++] = sample; \
-    if (audio_write >= AUDIO_BUFFERLEN) audio_write = 0, saudio_push(audio_bufferA, AUDIO_BUFFERLEN); \
-} while(0)
-
 int audio_write = 0;
-float audio_buffer1[AUDIO_BUFFERLEN] = {0}; // beeper
-float audio_buffer2[AUDIO_BUFFERLEN] = {0}; // AY1, ch0
-float audio_buffer3[AUDIO_BUFFERLEN] = {0}; // AY1, ch1
-float audio_buffer4[AUDIO_BUFFERLEN] = {0}; // AY1, ch2
-float audio_buffer5[AUDIO_BUFFERLEN] = {0}; // AY2, ch0
-float audio_buffer6[AUDIO_BUFFERLEN] = {0}; // AY2, ch1
-float audio_buffer7[AUDIO_BUFFERLEN] = {0}; // AY2, ch2
-float audio_bufferA[AUDIO_BUFFERLEN] = {0}; // all channels
+float audio_buffer1[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // beeper
+float audio_buffer2[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY1, ch0
+float audio_buffer3[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY1, ch1
+float audio_buffer4[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY1, ch2
+float audio_buffer5[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY2, ch0
+float audio_buffer6[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY2, ch1
+float audio_buffer7[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // AY2, ch2
+float audio_bufferA[0x1000*4/*AUDIO_BUFFERLEN*/] = {0}; // all channels
+
+typedef int static_assert_ispow2[ countof(audio_bufferA) & (countof(audio_bufferA) - 1) ? -1 : 1 ];
 
 void sys_audio();
 
+void audio_queue(float sample,float samples[7]) { // mixed samples, then [1 beeper+x3 AY1 channels+x3 AY2 channels]
+    audio_buffer1[audio_write  ] = samples[0];
+    audio_buffer2[audio_write  ] = samples[1];
+    audio_buffer3[audio_write  ] = samples[2];
+    audio_buffer4[audio_write  ] = samples[3];
+    audio_buffer5[audio_write  ] = samples[4];
+    audio_buffer6[audio_write  ] = samples[5];
+    audio_buffer7[audio_write  ] = samples[6];
+    audio_bufferA[audio_write++] = sample;
+    audio_write &= countof(audio_bufferA)-1;
+
+    float mix(float);
+    const int num_samples = saudio_expect();
+    if (num_samples > 0 && audio_write >= num_samples) {
+        for( int i = 0; i < num_samples; ++i )
+            audio_bufferA[i] += mix(0.5);
+        saudio_push(audio_bufferA, num_samples);
+        audio_write -= num_samples;
+        if( audio_write > 0 )
+        memmove(audio_bufferA, audio_bufferA + num_samples, audio_write * sizeof(audio_bufferA[0]));
+    }
+}
+
+void audio_reset(void) {
+    #define memsetf memset32
+    memsetf(audio_buffer1, 0, countof(audio_buffer1));
+    memsetf(audio_buffer2, 0, countof(audio_buffer2));
+    memsetf(audio_buffer3, 0, countof(audio_buffer3));
+    memsetf(audio_buffer4, 0, countof(audio_buffer4));
+    memsetf(audio_buffer5, 0, countof(audio_buffer5));
+    memsetf(audio_buffer6, 0, countof(audio_buffer6));
+    memsetf(audio_buffer7, 0, countof(audio_buffer7));
+    memsetf(audio_bufferA, 0, countof(audio_bufferA));
+    audio_write = 0;
+}
 void audio_quit(void) {
     saudio_shutdown();
 }
@@ -46,24 +71,31 @@ void audio_init() {
 }
 
 
+#include "res/audio/seek"    // S16 C1 22050Hz cap32
+//#include "res/audio/seek2"   // S16 C1 22050Hz 
+
+//#include "res/audio/read"    // S16 C1 22050Hz
+//#include "res/audio/step"    // S16 C1 22050Hz too fast
+//#define wavread wavstep
+#include "res/audio/525_step_1_1"   // S16 C1 22050Hz
+#define wavread wav525_step_1_1
+
+//#include "res/audio/motor"   // S16 C1 22050Hz cap32
+#include "res/audio/motor2"  // S16 C1 22050Hz rvm
+#define wavmotor wavmotor2
+//#include "res/audio/running" // S16 C1 22050Hz zxsp
+//#define wavmotor wavrunning
 
 //#include "res/audio/insert"  // S16 C1 22050Hz zxsp
 //#include "res/audio/eject"   // S16 C1 22050Hz zxsp
 
-//#include "res/audio/motor"   // S16 C1 22050Hz cap32
-//enum {motor_volume = 10};
-//#include "res/audio/motor2"  // S16 C1 22050Hz rvm
-//enum {motor_volume = 3};
-#include "res/audio/running" // S16 C1 22050Hz zxsp
-enum {motor_volume = 3}; // 5
+enum { FDC_VOLUME = 5 };
 
-#include "res/audio/seek"    // S16 C1 22050Hz cap32
-//#include "res/audio/seek2"   // S16 C1 22050Hz 
 
-#include "res/audio/read"    // S16 C1 22050Hz
-//#include "res/audio/step"    // S16 C1 22050Hz too fast
 
 #include "res/audio/camera"    // S16 C1 22050Hz
+
+
 
 typedef struct voice_t {
     int id;
@@ -78,12 +110,13 @@ enum { voices_max = 4 };
 voice_t voice[voices_max];
 
 char *voice_info(int i) {
-    int id = voice[i].id;
-    return va("play %c%c%c%c x%d %f/%u %p", 
-        (voice[i].id>>24)&255,(voice[i].id>>16)&255,(voice[i].id>>8)&255,(voice[i].id>>0)&255,
+    unsigned id = voice[i].id;
+    return va("play x%u %3d%% %p %x %c%c%c%c", 
         voice[i].count,
-        voice[i].pos, voice[i].len,
-        voice[i].samples );
+        (int)(voice[i].pos * 100 / (voice[i].len+!voice[i].len)),
+        voice[i].samples,
+        id,
+        (id>>24)&255,(id>>16)&255,(id>>8)&255,(id>>0)&255);
 }
 
 float mix(float dt) {
@@ -181,9 +214,9 @@ voice_t wav2voice(unsigned id, unsigned amplify, const void *bin, int len) {
 }
 
 int play(int sample_id, unsigned count) {
-    static voice_t  motors[1]; do_once  motors[0] = wav2voice('moto', motor_volume, wavrunning, sizeof(wavrunning));
-    static voice_t   seeks[1]; do_once   seeks[0] = wav2voice('seek', 5, wavseek, sizeof(wavseek));
-    static voice_t   reads[1]; do_once   reads[0] = wav2voice('read', 5, wavread, sizeof(wavread));
+    static voice_t  motors[1]; do_once  motors[0] = wav2voice('moto', 1*1.5*FDC_VOLUME, wavmotor, sizeof(wavmotor));
+    static voice_t   seeks[1]; do_once   seeks[0] = wav2voice('seek', 3*2*FDC_VOLUME, wavseek, sizeof(wavseek));
+    static voice_t   reads[1]; do_once   reads[0] = wav2voice('read', 5*2*FDC_VOLUME, wavread, sizeof(wavread));
     static voice_t cameras[1]; do_once cameras[0] = wav2voice('cam', 1, wavcamera, sizeof(wavcamera));
 
     // load known samples
@@ -225,4 +258,30 @@ float low_pass_filter_10khz(float input, float *prev_output, float sample_rate) 
     
     // Convert output from [-1, 1] back to [0, 1]
     return 0.5f * (y + 1.0f);
+}
+
+// Simple DC offset removal filter
+// The AY-3-8910 (and similar PSG chips) often produce output with non-zero average (DC bias) due to asymmetrical square waves or envelope shapes.
+// If we don't remove it:
+// - The waveform can look vertically offset when plotted.
+// - It can cause low-frequency rumble or speaker clicks when played back.
+// This function keeps the waveform centered around zero, both for visualization and audio quality.
+typedef struct {
+    float prev_input;
+    float prev_output;
+    float alpha;
+} dcr_t;
+void dcr_init(dcr_t* dc, float sample_rate, float cutoff_hz) {
+    float rc = 1.0f / (2.0f * 3.1415926535f * cutoff_hz);
+    float dt = 1.0f / sample_rate;
+    dc->alpha = rc / (rc + dt);
+
+    dc->prev_input = 0.0f;
+    dc->prev_output = 0.0f;
+}
+float dcr_filter(dcr_t* dc, float s) {
+    float out = s - dc->prev_input + dc->alpha * dc->prev_output;
+    dc->prev_input = s;
+    dc->prev_output = out;
+    return out;
 }

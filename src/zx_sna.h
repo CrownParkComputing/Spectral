@@ -556,11 +556,83 @@ int szx_load(const byte *src, int len) {
     return 1;
 }
 
-int guess(const byte *ptr, int size) { // guess required model type for given data
-    int current = ZX|ZX_PENTAGON;
+#if 1
+#define DISK_SECTOR_SIZE 256
+#define DISK_CATALOG_OFFSET 0x2000
+#define DISK_MAX_FILES 128
 
+// Check if data is TRD (TR-DOS disk image)
+int is_trd(const unsigned char *data, size_t size) {
+    if (size < DISK_CATALOG_OFFSET + DISK_SECTOR_SIZE) return 0;
+    
+    const unsigned char *catalog = data + DISK_CATALOG_OFFSET;
+    unsigned char disk_type = catalog[8];
+    unsigned char num_files = catalog[9];
+    unsigned short free_sectors = catalog[10] | (catalog[11] << 8);
+    
+    return (disk_type == 0x16 || disk_type == 0x17) && 
+           num_files <= DISK_MAX_FILES && 
+           free_sectors <= 2544;
+}
+
+// Check if data is SCL (Simplified TR-DOS image)
+int is_scl(const unsigned char *data, size_t size) {
+    if (size < 9) return 0;
+    return memcmp(data, "SINCLAIR", 8) == 0 && data[8] <= DISK_MAX_FILES;
+}
+
+// Check if data is Hobeta (.$b, .$c, .$d)
+int is_hobeta(const unsigned char *data, size_t size) {
+    if (size < 17 || size > 100000) return 0;
+    
+    if (data[15] != 0x00) return 0;
+    
+    unsigned char checksum = 0;
+    for (int i = 0; i < 16; i++) checksum += data[i];
+    
+    unsigned short file_length = data[11] | (data[12] << 8);
+    return checksum == data[16] && (file_length + 17) == size;
+}
+
+// Check if data is FDI (Formatted Disk Image)
+int is_fdi(const unsigned char *data, size_t size) {
+    if (size < 3) return 0;
+    return memcmp(data, "FDI", 3) == 0;
+}
+
+// Check if data is IMG (Raw TR-DOS image)
+int is_img(const unsigned char *data, size_t size) {
+    if (size < DISK_CATALOG_OFFSET || size > 1000000 || size % DISK_SECTOR_SIZE != 0) return 0;
+    return is_trd(data, size); // IMG shares TR-DOS catalog structure
+}
+
+// Check if data is MGT (+D disk image)
+int is_mgt(const unsigned char *data, size_t size) {
+    if (size < DISK_SECTOR_SIZE) return 0;
+    
+    // Check for valid MGT catalog entries (32-byte entries, first byte 0x00-0x0F or 0xFF)
+    for (int i = 0; i < DISK_SECTOR_SIZE; i += 32) {
+        if (data[i] != 0xFF && data[i] > 0x0F) return 0;
+    }
+    return 1;
+}
+
+// Identify format from data array
+const char *identify_disk(const unsigned char *data, size_t size) {
+    if (is_trd(data, size)) return "TRD";
+    if (is_scl(data, size)) return "SCL";
+    if (is_hobeta(data, size)) return "Hobeta";
+    if (is_fdi(data, size)) return "FDI";
+    if (is_img(data, size)) return "IMG";
+    if (is_mgt(data, size)) return "MGT";
+    return NULL;
+}
+
+#endif
+
+int guess_v1(const byte *ptr, int size) { // guess required model type for given data
     // ay first
-    if( size > 0x08 &&(!memcmp(ptr, "ZXAYEMUL", 8) )) return 128;
+    if( size > 0x08 &&(!memcmp(ptr, "ZXAYEMUL", 8) )) return 128; // @fixme: 129? TurboAY?
 
     // szx
     if( size > 0x08 &&!(memcmp(ptr, "ZXST", 4))) {
@@ -575,24 +647,34 @@ int guess(const byte *ptr, int size) { // guess required model type for given da
     if( size > 0x08 &&(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) ) return 300;
 
     // tapes first
-    if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) return current;
-    if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) return current;
-    if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return current;
-    if( size > 0x04 && !memcmp(ptr, "PZXT", 4) ) return current;
+    int find_bas = 0;
+    if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return 0;
+    if( size > 0x04 && !memcmp(ptr, "\x13\x00\x00\x03", 4) ) return 48; // LOAD""CODE, this is either a 16k or 48k old game
+    if( size > 0x10 && !memcmp(ptr, "ZXTape!\x1a", 8) ) if(memmem(ptr, 0x10, "\x13\x00\x00\x03", 4)) return 48; // LOAD""CODE
+    if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) find_bas = 0x04;
+    if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) find_bas = ((const byte*)memmem(ptr, size-8, "\x13\x00\x00\x00", 4) - ptr) + 0x04;
+    if( size > 0x04 && !memcmp(ptr, "PZXT", 4) ) find_bas = ((const byte*)memstr(ptr, size-4, "DATA") - ptr) + 0x1A;
+    if( find_bas ) {
+        if( find_bas > 0 && find_bas < size && memstr(ptr+find_bas, 10, "48") )  return  48;
+        if( find_bas > 0 && find_bas < size && memstr(ptr+find_bas, 10, "128") ) return 128;
+        return 0;
+    }
 
     // headerless fixed-size formats now, sorted by ascending file size.
     if( size == 6912 ) return 48;
     if( size == 16384 ) return 48;
     if( size == 32768 ) return 128;
-    if( size == 65536 ) return 210;
+    if( size == 65536 ) return 210; // 300?
     if( size == 49179 ) return 48;
-    if( size == 131103 ) return 128; // @fixme: infer ZX_PENTAGON
-    if( size == 147487 ) return 128;
+    if( size == 131103 ) return 128; // @fixme: infer ZX_PENTAGON from .sna
+    if( size == 147487 ) return 128; // @fixme: infer ZX_PENTAGON from .sna
 
+    // @fixme: trd/scl/fdi/mgt headers to parse?
     // at this point file is too large to be a snapshot. must be a disk instead (trd,scl,fdi,mgt,etc)
+    if( identify_disk(ptr,size) ) return 128|1;
     if( size > 147487 ) return 128|1;
 
     // headerless variable-size formats now
-    if( *ptr == 'N' ) return current;
-    return size > 87 ? z80_guess(ptr, size) : current;
+    if( *ptr == 'N' ) return 0; // .pok
+    return size > 87 ? z80_guess(ptr, size) : 0;
 }
