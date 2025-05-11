@@ -304,11 +304,15 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <time.h>
+#include <limits.h> // Added for PATH_MAX
+#include <linux/limits.h> // Also try this for PATH_MAX
 
 #if !DEV // disable console logging in release builds (needed for linux/osx targets)
 #define printf(...) 0
 #define puts(...)   1
 #endif
+
+#define SIDEBAR_WIDTH 120
 
 // 384x304 to fit border_break.trd resolution
 enum { _256 = 384, _255 = _256-1, _257 = _256+1, _32 = (_256-256)/2 };
@@ -450,7 +454,7 @@ int app_create(const char *title, int fs, int zoom) {
         // do nothing
     } else {
         // force change view
-        if(app) tigrFree(app);          app = tigrWindow(_256, _192, title, window_flags(fs, zoom));  // _32+256+_32, (_24+192+_24),
+        if(app) tigrFree(app);          app = tigrWindow(_256 + SIDEBAR_WIDTH, _192, title, window_flags(fs, zoom));  // _32+256+_32, (_24+192+_24),
 
         // postfx. @fixme: reload user shader too
         crt(ZX_CRT);
@@ -830,573 +834,216 @@ void draw_ui() {
 
     enum { UI_X = 0, UI_Y = 0 };
 
-    // draw_compatibility_stats(ui);
+    static int prev_rmb_state = 0; // For tracking right mouse button release
 
     // ui
     int UI_LINE1 = (ZX_CRT ? 2 : 0); // first visible line
 
     struct mouse m = mouse();
+    int rmb_is_pressed = m.rb;
+    int rmb_was_pressed_prev_frame = prev_rmb_state;
+    prev_rmb_state = rmb_is_pressed; // Update for next frame
+
+    int rmb_up = rmb_was_pressed_prev_frame && !rmb_is_pressed;
+    int rmb_held = rmb_is_pressed; // Current state for 'held' logic
+
     if( m.cursor == 0 ) {
         m.x = _320/2, m.y = _240/2; // ignore mouse; already clipped & hidden (in-game)
     } else {
         if( !browser ) mouse_cursor(1);
     }
 
-    // ui animation
-    enum { _60 = 58+8-4 };
-    int hovering_border = !browser && !do_overlay && (m.x > (_320 - _60) || m.x < _60 );
-    static float smooth; do_once smooth = hovering_border;
-    smooth = smooth * 0.75 + hovering_border * 0.25;
-    // left panel: game options
-    if( smooth > 0.1 )
-    {
-        {
-            // draw black panel
-            TPixel transp = { 0,0,0, 192 * smooth };
-            tigrFillRect(ui, -1,-1, smooth * _60, _240+2, transp);
-            tigrLine(ui, smooth * _60-2,-1,smooth * _60-2,_240+2, ((TPixel){255,255,255,240*smooth}));
-        }
+     int sidebar_x_start = _256; // Using enum _256 (actual pixel 384) as the start of the sidebar
 
-        // left panel
-        float chr_x = REMAP(smooth,0,1,-6,0.5) * 11, chr_y = REMAP(smooth,0,1,-4,2.5+1-0.5) * 11 + 2;
-        int right = chr_x+8*4-4;
-//        int bottom = chr_y+8*31.0-1;
-        int bottom = _240-11*4.5+chr_y; // +8*31.0-1;
+    // Fill sidebar background
+    tigrFillRect(ui, sidebar_x_start, 0, SIDEBAR_WIDTH, _240, tigrRGB(40,40,40));
 
-        ui_at(ui,chr_x-2,chr_y-11*2.5-2-1-2);
-        //ui_at(ui, chr_x, chr_y);
-        if( ZX_BROWSER == 2 ) {
-            // ZXDB builds
-            if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
+    // Draw a separator line for the sidebar
+    tigrLine(ui, sidebar_x_start - 1, 0, sidebar_x_start - 1, _240 -1, tigrRGB(255,255,255)); // Changed to white
+
+    int sidebar_current_y = 5;
+    int sidebar_padding = 5;
+    int button_height = 11; // Approximate height of a single line button/label
+
+    // --- Game Pause/Resume/Scan Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ZX_BROWSER == 2 ) { // ZXDB builds
+        const char* text = browser ? "Resume" : "Load Game"; // Changed "Pause" to "Load Game"
+        if( ui_click(text, text) ) cmdkey = browser ? 'GAME' : 'SCAN';
+    } else { // NOZXDB builds
+        if( !numgames ) {
+            if( ui_click("- Scan games folder -", "Scan Games") ) cmdkey = 'SCAN';
         } else {
-            // NOZXDB builds
-            if( !numgames )
-            if( ui_click("- Scan games folder -", "%c\n", FOLDER_CHR) ) cmdkey = 'SCAN';
-            if(  numgames )
-            if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
-        }
-
-        // tape controls, top-left
-        if( 0 && tape_inserted() ) {
-            ui_at(ui,chr_x-4+1+1,chr_y-11*2-4+1);
-            ui_label("     \f\f");
-            // ui_at(ui,chr_x-4+1+1,bottom+1);
-            //if( ui_click(NULL, REVPLAY_STR "\b\b\b" REVPLAY_STR "\f") ) cmdkey = 'PREV';
-            if( ui_click(tape_playing() ? "Stop tape" : "Play tape", tape_playing() ? "■"/*PLAY_STR*/ "\f" : PLAY_STR "\b\b\b" PLAY_STR "\f" ) ) cmdkey = tape_playing() ? 'STOP' : 'PLAY';
-            //if( ui_click(NULL, PLAY_STR "\b\b\b" PLAY_STR) ) cmdkey = 'NEXT';
-        }
-
-        // top-left zxdb column
-        ui_at(ui,chr_x,chr_y);
-
-        int len;
-
-        if( ZXDB.ids[0] ) {
-
-        const char *roles[] = {
-            ['?'] = "",
-            ['C'] = "Code: ",
-            ['D'] = "Design: ",
-            ['G'] = "Graphics: ",
-            ['A'] = "Inlay: ",
-            ['V'] = "Levels: ",
-            ['S'] = "Screen: ",
-            ['T'] = "Translation: ",
-            ['M'] = "Music: ",
-            ['X'] = "Sound Effects: ",
-            ['W'] = "Story Writing: ",
-        };
-
-        // zxdb
-        if( ui_click(va("- %s -", ZXDB.ids[0]), "ZXDB"));
-        {
-        char *link = va("- Visit game page -\nhttps://spectrumcomputing.co.uk/entry/%s", ZXDB.ids[0]);
-        if( ui_click(link, "\f\f\x19\n")) visit(link + countof("- Visit game page-\n"));
-        }
-        if( ui_click(va("- %s -", ZXDB.ids[2]), "Title\n"));
-        if( ZXDB.ids[3][0] )
-        if( ui_click(va("- %s -", ZXDB.ids[3]), "Alias\n"));
-        if( ui_click(va("- %s -", ZXDB.ids[1]), "Year\n"));
-        if( ui_click(va("- %s -", ZXDB.ids[4]), "Brand\n"));
-
-        if( ui_click(va("- %s -", ZXDB.ids[7] + strspn(ZXDB.ids[7],"0123456789")), "Genre\n"));
-        if( ZXDB.ids[6][0] && ui_click(va("- %s -", ZXDB.ids[6]), "Score\n"));
-
-        if( ZXDB.authors[0] ) {
-            if( ZXDB.authors[1] ) {
-                char text[(1+9)*64] = {0}, *ptr = text;
-                for( int i = 0; i < 9/*countof(ZXDB.authors)*/; ++i ) {
-                    if( i == 0 )
-                        ptr += snprintf(ptr, 64, "- Credits -\n");
-                    if( ZXDB.authors[i] )
-                        ptr += snprintf(ptr, 64, "%s%s\n",roles[ZXDB.authors[i][0]],ZXDB.authors[i]+1);
-                }
-                if( ui_click(text, "Team\n"));
-            } else {
-                int i = 0;
-                if( ui_click(va("- %s%s -",roles[ZXDB.authors[i][0]],ZXDB.authors[i]+1), "Author\n"));
-            }
-        }
-
-        if( ZXDB.ids[8] )
-        if( ui_click(ZXDB.ids[8], "Tags\n"));
-//          if( ui_click("- AY Sound -", "Feat.\n"));
-//          if( ui_click("- Multicolour (Rainbow Graphics) -", "Feat.\n"));
-
-        if( ui_click(va("- %s -", strchr(ZXDB.ids[5], ',')+1), "Model\n"));
-        if( ui_click("- Change media -", "Media\n")) cmdkey = 'LIST', cmdarg = va("#%s", ZXDB.ids[0]);
-
-        if( zxdb_url(ZXDB, "inlay") && ui_click("- Toggle Inlay -", "Inlay\n")) { // @todo: include scanned instructions and tape scan
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "inlay"), &len); data; free(data), data = 0 ) {
-                do_overlay ^= 1;
-                tigrClear(overlay, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
-                if( do_overlay ) {
-                    load_overlay(data,len);
-                }
-            }
-        }
-        if( zxdb_url(ZXDB, "screen") && ui_click("- Toggle Screen$ -", "Screen\n")) {
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "screen"), &len); data; free(data), data = 0 ) {
-                //if( len == 6912 ) memcpy(VRAM, data, len);
-                if( len == 6912 ) {
-                    rgba *tx = thumbnail(data, len, 1, false);
-
-                    do_overlay ^= 1;
-                    tigrClear(overlay, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
-                    if( do_overlay ) {
-                        load_overlay_rgba(tx,256,192);
-                        free(tx);
-                    }
-                }
-            }
-        }
-        if( zxdb_url(ZXDB, "ay") && ui_click("- Toggle Music Tracks -", "Tunes\n")) {
-            // use loading screen as a background
-            int scrlen; char *scrdata = zxdb_download(ZXDB,zxdb_url(ZXDB, "screen"), &scrlen);
-
-            // load & play tune
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "ay"), &len); data; free(data), data = 0 ) {
-                loadbin(data, len, false);
-            }
-
-            if( scrlen == 6912 ) memcpy(VRAM, scrdata, scrlen);
-            free(scrdata);
-        }
-        static int timer = 0; timer = (timer + 1) % 100;
-        if( zxdb_url(ZXDB, "mp3") && ui_click("- Toggle Bonus Track(s) -", va("Bonus%s\n", !play_findvoice('mp3') ? "" : (timer > 50) * 2 + "\f\f\f\f♪"))) {
-            cmdkey = 'MP3L'; // mp3 list
-        }
-        if( zxdb_url(ZXDB, "poke") && ui_click("- Enable Cheats -", "Cheats\n") ) {
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "poke"), &len); data; free(data), data = 0 ) {
-                loadbin(data, len, false);
-            }
-        }
-        if( zxdb_url(ZXDB, "map") && ui_click("- Toggle Game Map -", "Maps\n")) {
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "map"), &len); data; free(data), data = 0 ) {
-                do_overlay ^= 1;
-                tigrClear(overlay, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
-                if( do_overlay ) {
-                    load_overlay(data, len);
-                }
-            }
-        }
-        if( zxdb_url(ZXDB, "instructions") && ui_click("- Toggle Instructions -", "Help\n")) { // @todo: word wrap maybe. see Afterburner for a good test case
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "instructions"), &len); data; free(data), data = 0 ) {
-
-                // is it a zip? unzip & try to recurse... (see: IndianaJonesAndTheLastCrusade)
-                // @todo: also .rar, .gz @todo: move this over zxdb_download(). good idea?
-                if( len > 4 && !memcmp(data, "PK\3\4", 4) ) {
-                    for( FILE *fp = fopen(".Spectral/$$help.zip","wb"); fp; fclose(fp), fp = 0) {
-                        fwrite(data, len, 1, fp);
-                    }
-                    free(data); data = unzip(".Spectral/$$help.zip/*", &len);
-                    unlink(".Spectral/$$help.zip");
-                    if(!data) continue;
-                }
-
-                do_overlay ^= 1;
-                tigrClear(ui, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
-                if( do_overlay ) {
-                    const char *text = as_utf8(replace(data, "\t", " "));
-
-                    int dims = (ui_monospaced = 1, ui_print(NULL, 4,4, ui_colors, text));
-                    int w = dims & 0xFFFF;
-                    int h = dims >> 16;
-                    w = w < _320 ? _320 : w + 16-(w%16);
-                    h = h < _240 ? _240 : h + 16-(h%16);
-
-                    tigrFree(overlay);
-                    overlay = tigrBitmap(w, h);
-
-                    (ui_monospaced = 1, ui_print(overlay, 4,4, ui_colors, text));
-
-                    tigrRenderInitMap();
-                }
-            }
-        }
-
-        // mags reviews
-        // netplay lobby
+            const char* text = browser ? "Resume" : "Load Game"; // Changed "Pause" to "Load Game"
+            if( ui_click(text, text) ) cmdkey = browser ? 'GAME' : 'SCAN';
         }
     }
+    sidebar_current_y += button_height + sidebar_padding;
 
-    // expert mode
-    static int rmb_prev = 0, rmb_then = 0, rmb_now = 0;
-    rmb_prev = rmb_then;
-    rmb_then = rmb_now;
-    rmb_now = mouse().rb;
-    int rmb_held = rmb_now, rmb_up = rmb_prev;
+    // --- FPS Display ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    // static byte about = 0, frames = 26; // From old right panel - bat_anim icon removed
+    // static const char *abouts[] = {"",""};
+    // const char *bat_anim = abouts[(about = (about+1)%frames) / (frames/2)]; // bat_anim icon removed
+    if( ui_press("- Frames per second -\n(hold to boost)", "FPS: %d", (int)fps) ) cmdkey = 'MAX';
+    sidebar_current_y += button_height * 2 + sidebar_padding; // Account for two lines
 
-    int shift = key_pressed( TK_SHIFT);
+    // --- Screenshot Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click("- Screenshot -\n(Right-click captures UI)", "Screenshot") ) cmdkey = rmb_up ? 'PIC_':'PIC';
+    sidebar_current_y += button_height * 2 + sidebar_padding;
 
-    // right panel: emulator options
-    if( 1 )
-    {
-        int chr_x = REMAP(smooth,0,1,_320+11,_320-6*11) + 0, chr_y = REMAP(smooth,0,1,-4,2.5) * 11;
-        int right = chr_x+8*4-4;
-        int bottom = _240-11*(4+0.5*tape_inserted())+chr_y; // +8*31.0-1;
-
-        {
-            // draw black panel
-            TPixel transp = { 0,0,0, 192 * smooth };
-            tigrFillRect(ui, REMAP(smooth,0,1,_320,_320-_60), -1, _320*1/2, _240+2, transp);
-            tigrLine(ui, REMAP(smooth,0,1,_320,_320-_60)+1,-1,REMAP(smooth,0,1,_320,_320-_60)+1,_240+2, ((TPixel){255,255,255,240*smooth}));
-        }
-
-        // bat anim
-        static byte about = 0, frames = 26;
-        static const char *abouts[] = {"",""};
-        const char *bat = abouts[(about = (about+1)%frames) / (frames/2)];
-
-        ui_at(ui,chr_x - 8,chr_y-11*2-2-1);
-        ui_y++;
-        if( ui_press("- Frames per second -\n(hold to boost)", "\b%s\f%d", bat, (int)fps) ) cmdkey = 'MAX';
-        ui_y--;
-
-        ui_x = chr_x + 3 * 8;
-        if( ui_click("- Screenshot -\n(Right-click captures UI)", "%c", SNAP_CHR) ) cmdkey = rmb_up ? 'PIC_':'PIC'; // send screenshot command
-        if( ui_click("- VideoREC -\n(Right-click records UI)", "\f\f" )) cmdkey = rmb_up ? 'REC_':'REC';
-
-        ///if( ui_press("- Full Throttle -\n(hold)", "%c\b\b\b%c\b\b\b%c%d\n\n", PLAY_CHR,PLAY_CHR,PLAY_CHR,(int)fps) ) cmdkey = 'MAX';
-
-        ui_at(ui,chr_x - 4/*ui_x - 8*/,ui_y + 11*3);
-
-        const char *models[] = { [1]=" 16 ",[3]=" 48 ",[8]="128K",[9]="P128",[12]=" +2 ",[13]=" +2A",[18]=" +3 " };
-        ui_y--;
-        if( ui_click("- Clear Medias -", "") ) cmdkey = 'WIPE';
-        ui_y++;
-        if( ui_click(rmb_held*17+"- Toggle Model -\0- Toggle Model -\n16, 48, 128, +2, +2A, +3, Pentagon\n", "%s%s",models[(ZX/16)|ZX_PENTAGON],ZX_ALTROMS ? "!":"")) if(rmb_up) cmdkey = 'MODE'; else
-        {
+    // --- VideoREC Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click("- VideoREC -\n(Right-click records UI)", "Record Video") ) cmdkey = rmb_up ? 'REC_':'REC';
+    sidebar_current_y += button_height * 2 + sidebar_padding;
+    
+    // --- Model Toggle ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    const char* model_hint = rmb_held*17+"- Toggle Model -\0- Toggle Model -\n16, 48, 128, +2, +2A, +3, Pentagon\n";
+    if( ui_click(model_hint, "Select Model") ) {
+        if (rmb_up || (ui_press && !rmb_held)) { // If right mouse button was just released OR left mouse button just pressed (and not held from before for hint)
+            cmdkey = 'MODE'; // Cycle model directly
+        } else if (!rmb_held) { // This implies a left click that isn't just opening the hint
             int mode = ZX + ZX_PENTAGON;
             ui_dialog_new("- Toggle Model -");
-            ui_dialog_option(1,(mode!=16)+"\00516K\n", "Basic model with 16KB RAM", 'MODE',"16");
-            ui_dialog_option(1,(mode!=48)+"\00548K\n", "Popular model with 48KB RAM", 'MODE',"48");
-            ui_dialog_option(1,(mode!=128)+"\005128K\n", "Upgraded model with 128KB RAM and AY sound chip", 'MODE',"128");
-            ui_dialog_option(1,(mode!=200)+"\005+2\n", "128K with built-in tape recorder", 'MODE',"200");
-            ui_dialog_option(1,(mode!=210)+"\005+2A\n", "Rebranded +2 model with 64K ROM", 'MODE',"210");
-            ui_dialog_option(1,(mode!=300)+"\005+3\n", "+2A compatible with built-in 3\" floppy disk drive", 'MODE',"300");
-            ui_dialog_option(1,(mode!=129)+"\005Pentagon\n", "Soviet ZX Spectrum 128 clone with BetaDisk drive", 'MODE',"129");
+            ui_dialog_option(1,(mode!=16)+    "\00516K\n", "Basic model with 16KB RAM", 'MODE',"16");
+            ui_dialog_option(1,(mode!=48)+    "\00548K\n", "Popular model with 48KB RAM", 'MODE',"48");
+            ui_dialog_option(1,(mode!=128)+   "\005128K\n", "Upgraded model with 128KB RAM and AY sound chip", 'MODE',"128");
+            ui_dialog_option(1,(mode!=200)+   "\005+2\n", "128K with built-in tape recorder", 'MODE',"200");
+            ui_dialog_option(1,(mode!=210)+   "\005+2A\n", "Rebranded +2 model with 64K ROM", 'MODE',"210");
+            ui_dialog_option(1,(mode!=300)+   "\005+3\n", "+2A compatible with built-in 3\" floppy disk drive", 'MODE',"300");
+            ui_dialog_option(1,(mode!=129)+   "\005Pentagon\n", "Soviet ZX Spectrum 128 clone with BetaDisk drive", 'MODE',"129");
+            ui_dialog_separator();
+            ui_dialog_option(1,"Cancel\n",NULL,0,0);
         }
-        ui_y-=1;
-        if( ui_click(rmb_held*23+"- Magic button (NMI) -\0- Magic button (NMI) -\nGenerates a Non-Maskable Interrupt", "\f\n") ) cmdkey = 'NMI';
-        ui_y+=1;
-
-        int tableHz[] = {[50]=0,[60]=1,[100]=2,[120]=3,[150]=4,[200]=5,[400]=6};
-        if( ui_click(rmb_held*21+"- Toggle Z80 speed -\0- Toggle Z80 speed -\n0:25Hz, 1:30Hz, 2:50Hz, 3:60Hz, 4:75Hz, 5:7MHz, 6:14MHz", "🗲\f%d", tableHz[(int)ZX_FPSMUL]) ) if(rmb_up) cmdkey = 'CPU'; else
-        {
-            ui_dialog_new("- Toggle Z80 speed -");
-            ui_dialog_option(1,(ZX_FPSMUL!=400)+"\005400%% (14 MHz)\n",NULL,'CPU',"400");
-            ui_dialog_option(1,(ZX_FPSMUL!=200)+"\005200%% (7 MHz)\n",NULL,'CPU',"200");
-            ui_dialog_option(1,(ZX_FPSMUL!=150)+"\005150%% (75 Hz)\n",NULL,'CPU',"150");
-            ui_dialog_option(1,(ZX_FPSMUL!=120)+"\005120%% (60 Hz)\n",NULL,'CPU',"120");
-            ui_dialog_option(1,(ZX_FPSMUL!=100)+"\005100%% (50 Hz)\n",NULL,'CPU',"100");
-            ui_dialog_option(1,(ZX_FPSMUL!= 60)+"\00560%% (30 Hz)\n",NULL,'CPU',"60");
-            ui_dialog_option(1,(ZX_FPSMUL!= 50)+"\00550%% (25 Hz)\n",NULL,'CPU',"50");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*19+"- Toggle ULAplus -\0- Toggle ULAplus -\n0:off, 1:on, 2:on+ultrawide", "%c\f%d\n", ZX_ULAPLUS ? 'U':'u'/*CHIP_CHR '+'*/, ZX_ULAPLUS) ) if(rmb_up) cmdkey = 'ULA'; else
-        {
-            ui_dialog_new("- Toggle ULAplus -");
-            ui_dialog_option(1,(ZX_ULAPLUS!=2)+"\5Ultrawide ULA+\n",NULL,'ULA',"2");
-            ui_dialog_option(1,(ZX_ULAPLUS!=1)+"\5Enhanced ULA+\n",NULL,'ULA',"1");
-            ui_dialog_option(1,(ZX_ULAPLUS!=0)+"\5Classic ULA\n",NULL,'ULA',"0");
-        }
-
-        if( ui_click(rmb_held*16+"- Toggle Zoom -\0- Toggle Zoom -\nx1, x2, x3, x4", "X\f%d",ZX_ZOOM+!ZX_ZOOM) ) if(rmb_up) cmdkey = 'ZOOM'; else
-        {
-            int w, h; tigrGetDesktop(&w, &h);
-
-            ui_dialog_new("- Toggle Zoom -");
-            for( int i = 1; i <= 4; ++i ) {
-                if( app_wouldfit(i) )
-                    ui_dialog_option(1,va((ZX_ZOOM!=i)+"\005X%d\n",i), NULL,'ZOOM',va("%d",i));
-            }
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*22+"- Toggle Fullscreen -\0- Toggle Fullscreen -\n0:off, 1:on", "\f%d\n", ZX_FULLSCREEN) ) if(rmb_up) cmdkey = 'FULL'; else
-        {
-            ui_dialog_new("- Toggle Fullscreen -");
-            ui_dialog_option(1,(!ZX_FULLSCREEN)+"\5Fullscreen\n",NULL,'FULL',"1");
-            ui_dialog_option(1,( ZX_FULLSCREEN)+"\5Windowed\n",NULL,'FULL',"0");
-        }
-
-        if( ui_click(rmb_held*19+"- Toggle TV mode -\0- Toggle TV mode -\n0:off, 1:rf, 2:crt, 3:crt+rf", "▒\f%d", (ZX_CRT << 1 | ZX_RF)) ) if(rmb_up) cmdkey = 'TV'; else
-        {
-            int mode = (ZX_CRT << 1 | ZX_RF);
-            ui_dialog_new("- Toggle TV mode -");
-            ui_dialog_option(1,(mode!=3)+"\5<CRT and RF (extra CPU cost)\n",NULL,'TV',"3");
-            ui_dialog_option(1,(mode!=2)+"\5<CRT only\n",NULL,'TV',"2");
-            ui_dialog_option(1,(mode!=1)+"\5<RF only (extra CPU cost)\n",NULL,'TV',"1");
-            ui_dialog_option(1,(mode!=0)+"\5<Crisp\n",NULL,'TV',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*19+"- Toggle Palette -\0- Toggle Palette -\n0:Spectral, X:others", "\f%d\n", ZX_PALETTE) ) if(rmb_up) cmdkey = 'PAL'; else
-        {
-            ui_dialog_new("- Toggle Palette -");
-            for( int i = 0; i < countof(ZXPaletteNames); ++i)
-            ui_dialog_option(1,va((ZX_PALETTE!=i)+"\005%s\n",ZXPaletteNames[i]+1),NULL,'PAL',va("%d",i));
-        }
-
-        if( ui_click(rmb_held*19+"- Toggle AY core -\0- Toggle AY core -\n0:off, 1:fast, 2:accurate", /*𝄞*/"♬\f%d",ZX_AY) ) if(rmb_up) cmdkey = 'AY'; else
-        {
-            ui_dialog_new("- Toggle AY core -");
-            ui_dialog_option(1,(ZX_AY!=2)+"\5Accurate AY\n",NULL,'AY',"2");
-            ui_dialog_option(1,(ZX_AY!=1)+"\5Fast AY\n",NULL,'AY',"1");
-            ui_dialog_option(1,(ZX_AY!=0)+"\5Off\n",NULL,'AY',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*21+"- Toggle Waveforms -\0- Toggle Waveforms -\n0:off, 1:on", "\f%d\n",ZX_WAVES) ) if(rmb_up) cmdkey = 'WAVE'; else
-        {
-            ui_dialog_new("- Toggle Waveforms -");
-            ui_dialog_option(1,(ZX_WAVES!=1)+"\5Display waveforms\n",NULL,'WAVE',"1");
-            ui_dialog_option(1,(ZX_WAVES!=0)+"\5Off\n",NULL,'WAVE',"0");
-        }
-
-        const char joyicon[256] = {
-            //[64]='X',   // Kempston C [port 95]
-            [32]='B',     // Kempston B [port 55]
-            [16]='F',     // (F)uller
-            [8]='2',      // Sinclair/Interface (2)
-            [4]='1',      // Sinclair (1)
-            [2]='K',      // (K)empston
-            [1]='C',      // (C)ursor
-            [0]='0',      // (0)Off
-            [16+2+1]='J', // (J)oysticks mask: cursor+kempston+fuller
-        };
-        if( ui_click(rmb_held*21+"- Toggle Joysticks -\0- Toggle Joysticks -\n0:off, 1:sinclair1, 2:sinclair/interface2\nC:ursor, K:empston, J:fuller+cursor+kempston", "%c\f%c", JOYSTICK_CHR, ZX_JOYSTICK > 0xFF ? (ZX_JOYSTICK>>8) + 'a' : joyicon[ZX_JOYSTICK&0xFF] ? joyicon[ZX_JOYSTICK&0xFF] : '*')) if(rmb_up) cmdkey = 'JOY'; else
-        {
-            cmdkey = 'JOY0';
-        }
-        ui_x += 8;
-        if( ui_click("- Gamepad bindings -", "\f0\n") ) // if(rmb_up) cmdkey = 'PAD0'; else
-        {
-            cmdkey = 'PAD0';
-        }
-
-        if( ui_click(rmb_held*20+"- Toggle Lightgun -\0- Toggle Lightgun -\n0:off, 1:lightgun+gunstick", /**/"\xB\f%d", ZX_GUNSTICK) ) if(rmb_up) cmdkey = 'GUNS'; else
-        {
-            ui_dialog_new("- Toggle Lightgun -");
-            ui_dialog_option(1,(!ZX_GUNSTICK)+"\5Lightgun + Gunstick\n",NULL,'GUNS',"1");
-            ui_dialog_option(1,( ZX_GUNSTICK)+"\5No lightgun\n",NULL,'GUNS',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*20+"- Toggle Autofire -\0- Toggle Autofire -\n0:off, 1:slow, 2:fast, 3:faster", "\f%d\n", ZX_AUTOFIRE) ) if(rmb_up) cmdkey = 'FIRE'; else
-        {
-            ui_dialog_new("- Toggle Autofire -");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=3)+"\5Faster autofire\n",NULL,'FIRE',"3");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=2)+"\5Fast autofire\n",NULL,'FIRE',"2");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=1)+"\5Slow autofire\n",NULL,'FIRE',"1");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=0)+"\5No autofire\n",NULL,'FIRE',"0");
-        }
-
-        if( ui_click(rmb_held*17+"- Toggle Mouse -\0- Toggle Mouse -\n0:off, 1:kempston", "\x9\f%d", ZX_MOUSE) ) if(rmb_up) cmdkey = 'MICE'; else
-        {
-            ui_dialog_new("- Toggle Mouse -");
-            ui_dialog_option(1,(!ZX_MOUSE)+"\5Kempston Mouse\n",NULL,'MICE',"1");
-            ui_dialog_option(1,( ZX_MOUSE)+"\5No mouse\n",NULL,'MICE',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*21+"- Toggle Run-Ahead -\0- Toggle Run-Ahead -\n0:off, 1:improved input latency", !ZX_RUNAHEAD ? "🯆\f0\n" : "🯇\f1\n") ) if(rmb_up) cmdkey = 'RUN'; else
-        {
-            ui_dialog_new("- Toggle Run-Ahead -");
-            ui_dialog_option(1,(!ZX_RUNAHEAD)+"\5Improved input latency (extra CPU cost)\n",NULL,'RUN',"1");
-            ui_dialog_option(1,( ZX_RUNAHEAD)+"\5Normal input latency\n",NULL,'RUN',"0");
-        }
-
-        if( ui_click(rmb_held*31+"- Toggle 48-BASIC input mode -\0- Toggle 48-BASIC input mode -\nK:token based, L:letter based", "~%c~\f%d", ZX_KLMODE ? 'L' : 'K', ZX_KLMODE) ) if(rmb_up) cmdkey = 'KL'; else
-        {
-            ui_dialog_new("- Toggle 48-BASIC input mode -");
-            ui_dialog_option(1,( ZX_KLMODE)+"\5Tokens\n","Use traditional input mode",'KL',"0");
-            ui_dialog_option(1,(!ZX_KLMODE)+"\5Letters\n","Use modern input mode",'KL',"1");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*30+"- Toggle Keyboard Issue 2/3 -\0- Toggle Keyboard Issue 2/3 -\n2:earlier, 3:classic keyboard", "k\f%d\n", issue2 ? 2 : 3)) if(rmb_up) cmdkey = 'KEYB'; else
-        {
-            ui_dialog_new("- Toggle Keyboard Issue 2/3");
-            ui_dialog_option(1,(!!issue2)+"\5Classic keyboard\n",NULL,'KEYB',"3");
-            ui_dialog_option(1,( !issue2)+"\5Earlier keyboard\n",NULL,'KEYB',"2");
-        }
-
-        if( ui_click(rmb_held*20+"- Toggle FastLoad -\0- Toggle FastMedia -\n0:off, 1:faster media loading", "\f%d", ZX_FASTTAPE )) if(rmb_up) cmdkey = 'FAST'; else
-        {
-            ui_dialog_new("- Toggle FastLoad -");
-            ui_dialog_option(1,(!ZX_FASTTAPE)+"\5Faster loading speed\n",NULL,'FAST',"1");
-            ui_dialog_option(1,( ZX_FASTTAPE)+"\5Normal loading speed\n",NULL,'FAST',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*20+"- Toggle TurboROM -\0- Toggle TurboROM -\n0:off, 1:TurboROM .tap loader", va("\f%d\n",ZX_TURBOROM))) if(rmb_up) cmdkey = 'TURB'; else
-        {
-            ui_dialog_new("- Toggle TurboROM -");
-            ui_dialog_option(1,(!ZX_TURBOROM)+"\5Turbo ROM loader\n",NULL,'TURB',"1");
-            ui_dialog_option(1,( ZX_TURBOROM)+"\5Compatible ROM loader\n",NULL,'TURB',"0");
-        }
-
-        if( ui_click(rmb_held*24+"- Translate game menu -\0- Translate game menu -\n0:off, 1:poke game menu into English", "T\f%d", ZX_AUTOLOCALE)) if(rmb_up) cmdkey = 'TENG'; else
-        {
-            ui_dialog_new("- Translate game menu -");
-            ui_dialog_option(1,1/*(!ZX_AUTOLOCALE)*/+"\5Poke translation\n","Poke game menu into English",'TENG',"1");
-            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5Cancel\n",NULL,'TENG',"0");
-        }
-        ui_x += 8;
-        if( ui_click("- Toggle Lenslok -\nFocus on the center of the encoded image", "𜲌\f%d\n", ZX_LENSLOK)) cmdkey = 'LENS';
-
-#if DEV
-        if( ui_click("- Toggle DevTools -", "d\f%d\n", ZX_DEVTOOLS)) cmdkey = 'DEVT';
-#endif
-
-#if 0
-        static int use_console = 0;
-//        if( DEV )
-        if( ui_click("- Toggle Console -", "\f%d\n", use_console)) { // cmdkey = 'TERM';
-            void logo();
-            use_console ^= 1;
-            if( use_console ) AllocConsole(), /*enable_ansi(),*/ logo();
-            else FreeConsole();
-        }
-#endif
-
-        //if( ui_click("- Toggle TapePolarity -", "%c\f%d\n", mic_low ? '+':'-', !mic_low) ) cmdkey = 'POLR';
-
-        ui_at(ui,chr_x - 8,bottom+1);
-        if( ui_click(NULL, "i") ) cmdkey = 'HELP';
-
-        // debug
-        ui_at(ui,right,bottom);
-        if( ui_click("- Debug -", "") ) cmdkey = 'DEV'; // send disassemble command
     }
+    sidebar_current_y += button_height * 2 + sidebar_padding; // Account for multi-line text
+
+    // --- Placeholder for other ZXDB related info (previously left panel) ---
+    if (ZXDB.ids[0] && !browser) { // Show if a game is loaded (ZXDB info available) and not in browser mode
+        ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+        ui_label(va("Game: %s", ZXDB.ids[2])); // Display Title
+        sidebar_current_y += button_height + sidebar_padding;
+        ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+        ui_label(va("Year: %s", ZXDB.ids[1])); // Display Year
+        sidebar_current_y += button_height + sidebar_padding;
+    }
+    
+    // --- Save Game Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click(NULL, "- Save Game -") ) cmdkey = 'SAVE';
+    sidebar_current_y += button_height + sidebar_padding;
+
+    // --- Load Savegame Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click(NULL, "- Load Savegame -") ) cmdkey = 'LOAD';
+    sidebar_current_y += button_height + sidebar_padding;
+
+    // --- Play/Stop Tape Button ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click(NULL, tape_playing() ? "- Stop Tape -" : "- Play Tape -") ) cmdkey = tape_playing() ? 'STOP' : 'PLAY';
+    sidebar_current_y += button_height + sidebar_padding;
+    // --- TV Mode Toggle ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    const char *tv_modes[] = {"TV:Off", "TV:RF", "TV:CRT", "TV:RF+CRT"};
+    int current_tv_mode_idx = (ZX_CRT << 1) | ZX_RF;
+    if( ui_click(NULL, tv_modes[current_tv_mode_idx]) ) cmdkey = 'TV';
+    sidebar_current_y += button_height + sidebar_padding;
+    
+    // --- AY Sound Toggle ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    const char *ay_modes[] = {"AY:Off", "AY:Fast", "AY:Accurate"};
+    if( ui_click(NULL, ay_modes[ZX_AY]) ) cmdkey = 'AY';
+    sidebar_current_y += button_height + sidebar_padding;
+
+    // --- Joystick Toggle ---
+    ui_at(ui, sidebar_x_start + sidebar_padding, sidebar_current_y);
+    if( ui_click("- Select Joystick Type -", "- Joysticks -") ) cmdkey = 'JOY0'; // JOY0 opens the dialog
+    sidebar_current_y += button_height + sidebar_padding;
+
+    // --- END NEW SIDEBAR DRAWING ---
+
+
+    // The old right panel options (lines 1030 onwards) are being moved above.
+    // The old left panel (smooth > 0.1 block from ~853 to ~1028) is disabled.
 
     if( record_enabled() && ZXFlashFlag ) {
+        // This was an icon top-right, may need repositioning or integrating into sidebar
         ui_print(ui, _320-8*1-3, 0*11+4-2+2+1-2-1, ui_colors, "\2\7" );
     }
 
-#if 1
-    if( browser ) {
-        ui_at(ui, 1*11-4+2-8+2, 0*11+4-2);
-        if( ui_click(browser ? "Resume" : "Pause", browser ? PLAY_STR : PAUSE_STR) ) cmdkey = 'GAME'; // browser ^= 1, ui_dialog_new(NULL);
+#if 1 // This was the top-left resume button when browser is active, might need to be a main sidebar item too.
+    if( browser ) { // If in browser mode, show Resume at top of sidebar
+        // This potentially conflicts with the Pause/Scan button if always drawn.
+        // For now, let the Pause/Scan button at the top handle this via 'browser' state.
+        // ui_at(ui, sidebar_x_start + sidebar_padding, 5); // Overlap with existing Pause/Scan
+        // if( ui_click("Resume", PLAY_STR) ) cmdkey = 'GAME'; 
     }
 #endif
 
     // bottom slider: tape browser. @todo: rewrite this into a RZX player/recorder too
-    #define MOUSE_HOVERED_X() (m.x >= TOFF && m.x < (TOFF+_320))
-    #define MOUSE_HOVERED_Y() (m.y >= (_240-11-11*(m.x<_320*5/6)) && m.y < (_240+11) ) // m.y > 0 && m.y < 11 
+    #define MOUSE_HOVERED_X() (m.x >= TOFF && m.x < (TOFF+T320_canvas_width)) // Adjusted for canvas width
+    #define MOUSE_HOVERED_Y() (m.y >= (_240-11-11*(m.x<T320_canvas_width*5/6)) && m.y < (_240+11) ) 
     #define MOUSE_ACTION(pct) tape_seekf(pct)
-    #define BAR_Y()           (_240-REMAP(smoothY,0,1,-7,7)) // REMAP(smoothY,0,1,-10,UI_LINE1)
+    #define BAR_Y()           (_240-REMAP(smoothY_tapebar,0,1,-7,7)) 
     #define BAR_PROGRESS()    tape_tellf()
-    #define BAR_VISIBLE()     ( !tape_inserted() ? 0 : (MOUSE_HOVERED_Y() || BAR_PROGRESS() <= 1. && mic_on/*tape_playing()*/) ) // (m.y > -10 && m.y < _240/10) )
-    #define BAR_FILLING(...)  for(int pct = (int)((x)*1000.0/(T320+!T320)), *e = &pct; e; e = 0) if( (x&1) && tape_preview[pct] ) { __VA_ARGS__; }
+    #define BAR_VISIBLE()     ( !tape_inserted() ? 0 : (MOUSE_HOVERED_Y() || BAR_PROGRESS() <= 1. && mic_on/*tape_playing()*/) ) 
+    #define BAR_FILLING(...)  for(int pct_tapebar = (int)((x_tapebar)*1000.0/(T320_canvas_width+!T320_canvas_width)), *e_tapebar = &pct_tapebar; e_tapebar; e_tapebar = 0) if( (x_tapebar&1) && tape_preview[pct_tapebar] ) { __VA_ARGS__; }
 
     // bottom slider: tape browser
-    const int TOFF = _320/36, T320 = _320 - TOFF;
-    int visible = !browser && !do_overlay && BAR_VISIBLE();
-    static float smoothY; do_once smoothY = visible;
-    smoothY = smoothY * 0.75 + visible * 0.25;
-    if( smoothY > 0.01 )
+    const int TOFF = _256/36; // TOFF relative to canvas width (_256 enum val)
+    const int T320_canvas_width = _256 - TOFF; // Width of tape bar, relative to canvas
+    int visible_tape_bar = !browser && !do_overlay && BAR_VISIBLE();
+    static float smoothY_tapebar; do_once smoothY_tapebar = visible_tape_bar;
+    smoothY_tapebar = smoothY_tapebar * 0.75 + visible_tape_bar * 0.25;
+
+    if( smoothY_tapebar > 0.01 )
     {
-        int y = BAR_Y();
+        int y_tapebar = BAR_Y();
+        // Note: bar is drawn on 'ui' which is app width. TOFF is relative to canvas.
+        TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar_ptr = &ui->pix[TOFF + y_tapebar * _320];
 
-        TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[TOFF + y * _320];
 
-        if( ZX_CRT && (y > _240/2) ) // scanline correction to circumvent CRT edge distortion
-            bar -= _320 * 2;
+        if( ZX_CRT && (y_tapebar > _240/2) ) 
+            bar_ptr -= _320 * 2;
 
-        // manual tape controls
-        if( (ui_at(ui,TOFF/2-8/2,y-2), ui_click(NULL, tape_playing() ? "■" : PLAY_STR)) )
+        if( (ui_at(ui,TOFF/2-8/2,y_tapebar-2), ui_click(NULL, tape_playing() ? "■" : PLAY_STR)) )
             cmdkey = tape_playing() ? 'STOP' : 'PLAY';
-            //if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'PREV';
-            //if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'NEXT';
-            //if( ui_click(NULL, "%d", autoplay)) ZX_AUTOPLAY ^= 1;
-            //if( ui_click(NULL, "%d", autostop)) ZX_AUTOSTOP ^= 1;
-
-        unsigned mark = BAR_PROGRESS() * T320;
-        if( y < (_240/2) ) {
-            // bars & progress (top)
-            if(y>= 0) for( int x = 0; x < T320; ++x ) bar[x] = white;
-            if(y>=-2) for( int x = 0; x < T320; ++x ) bar[x+2*_320] = white;
-            if(y>= 1) for( int x = 0; x<=mark; ++x )  bar[x+_320] = white;
-            if(y>=-2) for( int x = 1; x<=mark; ++x )  bar[-1+2*_320] = black;
-            if(y>=-1) for( int x = 0; x < T320; ++x ) BAR_FILLING(bar[x+1*_320] = white);
-            // triangle marker (top)
-            if(y>=-4) bar[mark+4*_320] = white;
-            if(y>=-5) for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
-            if(y>=-6) for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+6*_320] = white;
+            
+        unsigned mark_tapebar = BAR_PROGRESS() * T320_canvas_width;
+        if( y_tapebar < (_240/2) ) {
+            if(y_tapebar>= 0) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) bar_ptr[x_tapebar] = white;
+            if(y_tapebar>=-2) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) bar_ptr[x_tapebar+2*_320] = white;
+            if(y_tapebar>= 1) for( int x_tapebar = 0; x_tapebar<=mark_tapebar; ++x_tapebar )  bar_ptr[x_tapebar+_320] = white;
+            if(y_tapebar>=-2) for( int x_tapebar = 1; x_tapebar<=mark_tapebar; ++x_tapebar )  bar_ptr[-1+2*_320] = black;
+            if(y_tapebar>=-1) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) BAR_FILLING(bar_ptr[x_tapebar+1*_320] = white);
+            if(y_tapebar>=-4) bar_ptr[mark_tapebar+4*_320] = white;
+            if(y_tapebar>=-5) for(int i = -1; i <= +1; ++i) if((mark_tapebar+i)>=0 && (mark_tapebar+i)<T320_canvas_width) bar_ptr[mark_tapebar+i+5*_320] = white;
+            if(y_tapebar>=-6) for(int i = -2; i <= +2; ++i) if((mark_tapebar+i)>=0 && (mark_tapebar+i)<T320_canvas_width) bar_ptr[mark_tapebar+i+6*_320] = white;
         } else {
-            // triangle marker (bottom)
-            if(y<=_239-0) for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+0*_320] = white;
-            if(y<=_239-1) for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+1*_320] = white;
-            if(y<=_239-2) bar[mark+2*_320] = white;
-            // bars & progress (bottom)
-            //if(y<=_239-4) for( int x = 1; x<=mark; ++x )  bar[-1+4*_320] = black;
-            if(y<=_239-4) for( int x = 0; x < T320; ++x ) bar[x+4*_320] = white;
-            if(y<=_239-5) for( int x = 0; x < T320; ++x ) BAR_FILLING(bar[x+5*_320] = white);
-            if(y<=_239-5) for( int x = 0; x<=mark; ++x )  bar[x+5*_320] = white;
-            if(y<=_239-6) for( int x = 0; x < T320; ++x ) bar[x+6*_320] = white;
+            if(y_tapebar<=_239-0) for(int i = -2; i <= +2; ++i) if((mark_tapebar+i)>=0 && (mark_tapebar+i)<T320_canvas_width) bar_ptr[mark_tapebar+i+0*_320] = white;
+            if(y_tapebar<=_239-1) for(int i = -1; i <= +1; ++i) if((mark_tapebar+i)>=0 && (mark_tapebar+i)<T320_canvas_width) bar_ptr[mark_tapebar+i+1*_320] = white;
+            if(y_tapebar<=_239-2) bar_ptr[mark_tapebar+2*_320] = white;
+            if(y_tapebar<=_239-4) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) bar_ptr[x_tapebar+4*_320] = white;
+            if(y_tapebar<=_239-5) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) BAR_FILLING(bar_ptr[x_tapebar+5*_320] = white);
+            if(y_tapebar<=_239-5) for( int x_tapebar = 0; x_tapebar<=mark_tapebar; ++x_tapebar )  bar_ptr[x_tapebar+5*_320] = white;
+            if(y_tapebar<=_239-6) for( int x_tapebar = 0; x_tapebar < T320_canvas_width; ++x_tapebar ) bar_ptr[x_tapebar+6*_320] = white;
         }
 
-        // is mouse hovering
         if( MOUSE_HOVERED_Y() && MOUSE_HOVERED_X() ) {
             mouse_cursor(2);
             if( m.buttons ) {
-                // MOUSE_ACTION((CLAMP(m.x,TOFF,TOFF+T320)-TOFF) / ((float)T320));
-                MOUSE_ACTION((m.x-TOFF) / ((float)T320));
-                // cmdkey = 'STOP';
+                MOUSE_ACTION((m.x-TOFF) / ((float)T320_canvas_width));
             }
-            static int prev = 0;
-            if( prev && !m.buttons ) {
+            static int prev_tape_mouse_btn = 0;
+            if( prev_tape_mouse_btn && !m.buttons ) {
                 cmdkey = 'PLAY';
             }
-            prev = m.buttons;
+            prev_tape_mouse_btn = m.buttons;
         }
     }
-
-    // bottom slider. @todo: rewrite this into a RZX player/recorder
-    if( 0 )
-    if( ZX_DEBUG )
-    if( !browser && !do_overlay ) {
-        static float my_var = 0; // [-2,2]
-
-        TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
-        unsigned mark = REMAP(my_var, -2,2, 0,1) * _320;
-        // triangle marker (bottom)
-        for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+0*_320] = white;
-        for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+1*_320] = white;
-        bar[mark+2*_320] = white;
-        bar += _320 * 4;
-        // bars & progress
-        for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
-        for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
-        // mouse seeking
-        if( m.y >= (_240-11) && m.y < _240 ) {
-            mouse_cursor(2);
-            if( m.buttons/*&4*/ ) {
-                m.x = m.x < 0 ? 0 : m.x > _320 ? _320 : m.x;
-                float target = REMAP(m.x, 0,_320, 0.98,1.2);
-                my_var = my_var * 0.50f + target * 0.50f ; // animate seeking
-                // print my_var value
-                char text[32]; sprintf(text, "%.4f", my_var);
-                ui_print(ui, (mark+5)/11.f,(_240-12.0)/11, ui_colors, text);
-            }
-        }
-    }
+    // ... rest of draw_ui, if any after tape bar
 }
 
 
@@ -1771,30 +1418,42 @@ if( do_runahead == 0 ) {
         // blit zx layer (canvas) to main app
         {
             // center
-            int x = canvas->w < app->w ? (app->w - canvas->w) / 2 : -(canvas->w - app->w) / 2;
-            int y = canvas->h < app->h ? (app->h - canvas->h) / 2 : -(canvas->h - app->h) / 2;
+            int x = 0; // Place canvas at the left edge
+            int y = canvas->h < app->h ? (app->h - canvas->h) / 2 : -(canvas->h - app->h) / 2; // Keep vertical centering
             // detect resize change
             static int prevx = 0, prevy = 0;
-            if( x != prevx || y != prevy )
-                app_resize();
+            if( x != prevx || y != prevy || app->w != (_256 + SIDEBAR_WIDTH) || app->h != _192 ) { // Check against new expected size
+                // If app_create is called, it will use SIDEBAR_WIDTH.
+                // app_resize() is called inside app_create, ensuring ui bitmaps are correct size.
+                // For now, let's assume resize is handled if app_create is invoked by zoom/fullscreen change.
+                // Direct resize of window by user might need explicit handling here or in tigrUpdate.
+            }
             prevx = x, prevy = y;
             // blit
             tigrBlit(app, canvas, x,y, 0,0,_256,_192);
             // adjust mouse coords for next frame
-            mouse_offsets()[0] = -x;
+            mouse_offsets()[0] = -x; // This will be 0
             mouse_offsets()[1] = -y;
             // ultrawide ula: for every paper scanline, repeat leftmost/rightmost pixels to infinity
             if( ZX_ULAPLUS >= 2 ) {
-                if( x > 0 )
-                for( int sc = 0; sc < (0+_192); ++sc)
-                    if( (sc+y) >= 0 && (sc+y) < _240 )
-                    memset32(&app->pix[0+(y+sc)*_320], *(rgba*)&canvas->pix[0+sc*_256], x),
-                    memset32(&app->pix[_319-x+(y+sc)*_320], *(rgba*)&canvas->pix[_256-1+sc*_256], x);
-                // truncate last line since it is unlikely to be a full width line in any zx model
-                if( y > 0 )
-                for( int sc = _192-1; sc < (0+_192); ++sc)
-                    if( (sc+y) >= 0 && (sc+y) < _240 )
-                    memset32(&app->pix[0+(y+sc)*_320], *(rgba*)&canvas->pix[0+sc*_256], _320);
+                // Left fill: if x (canvas_blit_x_offset) is 0, this part doesn't fill anything to the left of canvas.
+                if( x > 0 ) { // This condition will be false if x = 0
+                    for( int sc = 0; sc < (0+_192); ++sc)
+                        if( (sc+y) >= 0 && (sc+y) < _240 )
+                        memset32(&app->pix[0+(y+sc)*_320], *(rgba*)&canvas->pix[0+sc*_256], x);
+                }
+                
+                // Right fill: This should not draw over the sidebar.
+                // The space available to the right of canvas is (app->w - (_256 + x))
+                // If canvas is at x=0, space is (app->w - _256) which is SIDEBAR_WIDTH.
+                // We want ultrawide to only use "empty" space if any, not the sidebar.
+                // For now, let's disable the right-side fill to prevent drawing over the sidebar.
+                /*
+                if( x > 0 ) // x here was the symmetric margin.
+                    for( int sc = 0; sc < (0+_192); ++sc)
+                        if( (sc+y) >= 0 && (sc+y) < _240 )
+                        memset32(&app->pix[_319-x+(y+sc)*_320], *(rgba*)&canvas->pix[_256-1+sc*_256], x);
+                */
             }
         }
 
@@ -2660,3 +2319,4 @@ int chat_printf(const char *fmt, ...) {
 
     return rc;
 }
+

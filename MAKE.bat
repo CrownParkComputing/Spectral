@@ -5,8 +5,8 @@
 cd `dirname $0`
 
 # update to latest ------------------------------------------------------------
-git reset --hard HEAD~1
-git pull
+#git reset --hard HEAD~1
+#git pull
 
 #echo $*
 
